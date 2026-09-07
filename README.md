@@ -70,8 +70,8 @@ npm run fetch -- --only dlt|ssq   # 只抓指定彩种
 1. 将本仓库推送到 GitHub（建议先设为私有仓库）
 2. 在 [Vercel](https://vercel.com) 中 **Add New → Project** 导入该仓库，框架选择 Next.js，其余保持默认，点击 Deploy（零配置）
 3. 部署完成后在 Vercel 项目 Settings 中：
-   - 绑定自定义域名（可选）
-   - 添加环境变量 `SITE_URL=https://你的域名`（影响 `/sitemap.xml` 与 `/robots.txt`；不配则回退到默认占位域名）
+   - 绑定自定义域名（站点默认域名已内置为 `https://lottery-predict.com`，可在 DNS 面板将域名指向 Vercel）
+   - 添加环境变量 `SITE_URL=https://你的域名` 覆盖默认域名（影响 `/sitemap.xml` 与 `/robots.txt`）
 4. GitHub Actions 每日自动同步数据；也可在仓库 **Actions → 每日开奖数据更新 → Run workflow** 手动触发一次验证
 
 ## 目录结构
