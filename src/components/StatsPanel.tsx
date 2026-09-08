@@ -109,8 +109,11 @@ export default function StatsPanel({ draws, cfg }: { draws: Draw[]; cfg: GameCon
       grid: { left: 70, right: 40, top: 16, bottom: 28 },
       tooltip: {
         ...tooltipCfg(),
-        formatter: (p: { value: number; name: string }) =>
-          `${p.name}：已遗漏 ${p.value} 期`,
+        // axis 触发时 formatter 收到的是参数数组，单 series 取第一项
+        formatter: (ps: { value: number; name: string }[]) => {
+          const p = ps[0];
+          return `${p.name}：已遗漏 ${p.value} 期`;
+        },
       },
       xAxis: { type: "value", ...AXIS, splitLine: { lineStyle: { color: "#1e293b" } } },
       yAxis: {
@@ -182,7 +185,14 @@ export default function StatsPanel({ draws, cfg }: { draws: Draw[]; cfg: GameCon
     });
     return {
       grid: { left: 40, right: 16, top: 24, bottom: 28 },
-      tooltip: { ...tooltipCfg(), formatter: (p: { name: string; value: number }) => `奇:偶 ${p.name}：${p.value} 期` },
+      // axis 触发时 formatter 收到的是参数数组，单 series 取第一项
+      tooltip: {
+        ...tooltipCfg(),
+        formatter: (ps: { name: string; value: number }[]) => {
+          const p = ps[0];
+          return `奇:偶 ${p.name}：${p.value} 期`;
+        },
+      },
       xAxis: { type: "category", data: entries.map((e) => e[0]), ...AXIS },
       yAxis: { type: "value", ...AXIS, splitLine: { lineStyle: { color: "#1e293b" } } },
       series: [
