@@ -35,6 +35,8 @@ const GAMES = {
   dlt: {
     name: "超级大乐透",
     file: "dlt.json",
+    drawDays: [1, 3, 6], // 周一、三、六（北京时间）
+    drawTime: "21:25",
     validate: (d) => {
       assertSet(d.red, 5, 1, 35, "前区");
       assertSet(d.blue, 2, 1, 12, "后区");
@@ -44,6 +46,8 @@ const GAMES = {
   ssq: {
     name: "双色球",
     file: "ssq.json",
+    drawDays: [2, 4, 0], // 周二、四、日（北京时间）
+    drawTime: "21:15",
     validate: (d) => {
       assertSet(d.red, 6, 1, 33, "红球");
       assertSet(d.blue, 1, 1, 16, "蓝球");
@@ -105,8 +109,14 @@ async function fetchDlt(existingCodes) {
   while (pageNo <= Math.min(pages, 400) && !overlap) {
     const url = `https://webapi.sporttery.cn/gateway/lottery/getHistoryPageListV1.qry?gameNo=85&provinceId=0&pageSize=${pageSize}&isVerify=1&pageNo=${pageNo}`;
     const json = await getJson(url, headers);
+    if (json?.success !== true || json?.errorCode !== "0") {
+      throw new Error(`体彩接口返回错误：${json?.errorCode ?? "?"} ${json?.errorMessage ?? ""}`.trim());
+    }
     const v = json?.value;
     if (!v || !Array.isArray(v.list)) throw new Error("体彩接口返回结构异常：" + JSON.stringify(json).slice(0, 200));
+    if (v.list.length === 0 && pageNo === 1) {
+      throw new Error("体彩接口第 1 页返回空列表（可能被限流），请稍后重试");
+    }
     pages = Number(v.pages) || 1;
 
     for (const it of v.list) {

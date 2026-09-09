@@ -20,7 +20,8 @@ const GAMES = [
   { key: "ssq", name: "双色球", file: "ssq.json", drawDays: [2, 4, 0] },
 ];
 
-const GRACE_HOURS = 12; // 官方接口录入延迟 1-3 小时以上，留足 12 小时缓冲
+const GRACE_HOURS = 18; // 官方接口录入延迟可达半天以上；开奖 18 小时后仍缺当期才告警，
+                        // 避免官方上午才录入数据时 09:35/12:35 时段天天误报
 
 function pad2(n) {
   return String(n).padStart(2, "0");
