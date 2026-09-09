@@ -38,8 +38,12 @@ jobs:
       - name: 安装依赖
         run: npm ci
 
-      - name: 抓取开奖数据
-        run: npm run fetch
+      # 官方接口屏蔽海外机房 IP（体彩 HTTP 567 / 福彩 HTTP 403，重试无效），
+      # CI 内抓取基本必然失败：数据更新由本地 Windows 计划任务 LotteryDataSync 兜底
+      # （用 scripts/setup-sync-task.ps1 注册）。这里失败不阻断，
+      # 只要最后的 freshness 校验通过（数据新鲜）即视为正常
+      - name: 抓取开奖数据（CI 内尽力而为）
+        run: npm run fetch || echo "::warning::CI 抓取失败（官方接口屏蔽机房 IP），等待本地计划任务更新数据"
 
       # 先提交推送：即使另一彩种数据缺失导致后面的校验失败，
       # 已抓到的数据也要先部署上线
