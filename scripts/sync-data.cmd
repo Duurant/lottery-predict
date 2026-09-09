@@ -40,19 +40,22 @@ git add data/dlt.json data/ssq.json
 git diff --cached --quiet
 if errorlevel 1 (
   git commit -m "chore(data): scheduled sync of draw data" >>"%LOG%" 2>&1
-  set /a tries=0
-  :push
-  git push origin main >>"%LOG%" 2>&1
-  if errorlevel 1 (
-    set /a tries+=1
-    if !tries! lss 3 (
-      >>"%LOG%" echo push failed attempt !tries!/3, retrying in 15s
-      ping -n 16 127.0.0.1 >nul
-      goto push
-    )
-    >>"%LOG%" echo push failed after 3 attempts, will retry on next scheduled run
-    exit /b 1
+)
+
+rem Push unconditionally: also flushes commits left behind by earlier runs
+rem whose push failed on a network flake; it is a no-op when up to date
+set /a tries=0
+:push
+git push origin main >>"%LOG%" 2>&1
+if errorlevel 1 (
+  set /a tries+=1
+  if !tries! lss 3 (
+    >>"%LOG%" echo push failed attempt !tries!/3, retrying in 15s
+    ping -n 16 127.0.0.1 >nul
+    goto push
   )
+  >>"%LOG%" echo push failed after 3 attempts, will retry on next scheduled run
+  exit /b 1
 )
 >>"%LOG%" echo sync done
 endlocal

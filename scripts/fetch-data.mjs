@@ -245,6 +245,14 @@ async function runGame(key) {
     (a, b) => a.date.localeCompare(b.date) || a.code.localeCompare(b.code)
   );
 
+  // 无新增时保留原文件：避免每次抓取都因重写 updatedAt 产生空提交、空部署
+  // （官方对已开期号的更正极罕见，需要时可 --full 全量重抓）
+  if (added === 0 && !FULL) {
+    const prev = local.draws.at(-1);
+    console.log(`  无新增，保留原文件（最新 ${prev?.code} ${prev?.date}）`);
+    return true;
+  }
+
   mkdirSync(DATA_DIR, { recursive: true });
   const out = {
     game: key,
