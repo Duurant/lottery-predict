@@ -1,40 +1,26 @@
 @echo off
-rem Scheduled sync of lottery draw data: fetch -> commit data/*.json -> push
-rem (Vercel redeploys automatically on push). Invoked by the Windows scheduled
-rem task "LotteryDataSync"; register it with scripts/setup-sync-task.ps1.
-rem
-rem Why local: the official sporttery/cwl APIs block datacenter IPs used by
-rem GitHub Actions runners (HTTP 567 / 403), so CI can only act as a freshness
-rem watchdog; actual fetching must run on a residential network.
-rem GitHub connectivity from CN networks is flaky, so pull/push retry 3 times.
+rem Scheduled sync of lottery draw data. Order matters:
+rem   1) fetch + commit locally FIRST - lottery APIs do not depend on github,
+rem      so data is captured even while github is unreachable
+rem   2) pull --rebase + push, each retried direct then via the local proxy
+rem If pull/push keep failing the data stays committed locally and the next
+rem scheduled run publishes it.
+rem Invoked by the Windows scheduled task "LotteryDataSync"
+rem (register with scripts/setup-sync-task.ps1). Log: %USERPROFILE%\lottery-sync.log
 setlocal enabledelayedexpansion
 rem Repo root = parent of the scripts\ folder this file lives in (keeps this
 rem file ASCII-only; the real path contains non-ASCII characters)
 set REPO=%~dp0..
 set LOG=%USERPROFILE%\lottery-sync.log
+set PROXY=http://127.0.0.1:7890
 
 cd /d "%REPO%" || exit /b 1
 >>"%LOG%" echo ===== %date% %time% =====
 
-set /a tries=0
-:pull
-rem --autostash keeps the rebase working even with uncommitted local changes
-git pull --rebase --autostash origin main >>"%LOG%" 2>&1
-if errorlevel 1 (
-  set /a tries+=1
-  if !tries! lss 3 (
-    >>"%LOG%" echo pull failed attempt !tries!/3, retrying in 15s
-    ping -n 16 127.0.0.1 >nul
-    goto pull
-  )
-  >>"%LOG%" echo pull failed after 3 attempts, trying to abort an in-progress rebase
-  git rebase --abort >>"%LOG%" 2>&1
-  exit /b 1
-)
-
-rem Do not abort on fetch failure: when one game's API fails the other game's
-rem data is already written, so still commit whatever we got
-npm run fetch >>"%LOG%" 2>&1
+rem Fetch first: never let github connectivity block data collection.
+rem NOTE: npm is npm.cmd on Windows - WITHOUT "call" control transfers to it
+rem permanently and this script would end right here (never commit/push)
+call npm run fetch >>"%LOG%" 2>&1
 
 git add data/dlt.json data/ssq.json
 git diff --cached --quiet
@@ -42,20 +28,34 @@ if errorlevel 1 (
   git commit -m "chore(data): scheduled sync of draw data" >>"%LOG%" 2>&1
 )
 
-rem Push unconditionally: also flushes commits left behind by earlier runs
-rem whose push failed on a network flake; it is a no-op when up to date
-set /a tries=0
-:push
-git push origin main >>"%LOG%" 2>&1
-if errorlevel 1 (
-  set /a tries+=1
-  if !tries! lss 3 (
-    >>"%LOG%" echo push failed attempt !tries!/3, retrying in 15s
-    ping -n 16 127.0.0.1 >nul
-    goto push
-  )
-  >>"%LOG%" echo push failed after 3 attempts, will retry on next scheduled run
-  exit /b 1
-)
+call :git_retry pull --rebase --autostash origin main
+if errorlevel 1 exit /b 1
+call :git_retry push origin main
+if errorlevel 1 exit /b 1
 >>"%LOG%" echo sync done
 endlocal
+exit /b 0
+
+rem ---- git op with 2 direct attempts, then local-proxy fallback ----
+rem usage: call :git_retry push origin main
+:git_retry
+set /a tries=0
+:gr_direct
+git %* >>"%LOG%" 2>&1
+if not errorlevel 1 goto :eof
+set /a tries+=1
+if !tries! lss 2 (
+  >>"%LOG%" echo git %* failed, retrying in 10s
+  ping -n 11 127.0.0.1 >nul
+  goto gr_direct
+)
+rem FClash/Clash usually listens on 127.0.0.1:7890; use it only when present
+netstat -ano 2>nul | findstr /C:":7890 " | findstr LISTENING >nul 2>&1
+if errorlevel 1 (
+  >>"%LOG%" echo git %* failed twice, no local proxy on 7890, giving up for this run
+  exit /b 1
+)
+>>"%LOG%" echo direct git %* failed, retrying via %PROXY%
+git -c http.proxy=%PROXY% %* >>"%LOG%" 2>&1
+if errorlevel 1 exit /b 1
+goto :eof
