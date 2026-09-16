@@ -2,6 +2,9 @@
 /**
  * 开奖数据体检（只读，绝不写入 data/）
  *
+ * 覆盖两种玩法模型：组合型（大乐透/双色球，红蓝号码、不可重复）与数字型（排列五，5 位有序数字、
+ * 允许重复与前导 0）。两者的校验规则与卡方口径不同，见下方各自的检查函数。
+ *
  * 两类检查：
  *  A. 结构性（硬性）：期号格式与唯一性、日期格式/升序/非未来、号码个数与范围、
  *     号码不重复、开奖星期是否符合各彩种规律（法定休市属已知例外，单独列出）。
@@ -21,6 +24,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { GAMES } from "../src/lib/games.ts";
+import { DIGIT_GAME_KEYS, P5_CONFIG } from "../src/lib/digit.ts";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const DATA_DIR = join(ROOT, "data");
@@ -192,6 +196,100 @@ for (const [key, cfg] of Object.entries(GAMES)) {
   );
   frequencyCheck(cfg.redName, draws, "red", cfg.redMax, cfg.redCount);
   frequencyCheck(cfg.blueName, draws, "blue", cfg.blueMax, cfg.blueCount);
+  console.log("");
+}
+
+/* ---------------- 数字型（排列五） ---------------- */
+
+/**
+ * 各位数字频率的卡方检验。
+ * 与组合型不同：每位是 10 个数字上的**独立均匀**抽样（放回、可重复），
+ * 因此直接用普通多项分布卡方（df=9），**不做**不放回尺度修正。
+ */
+function digitFrequencyCheck(label, draws, position, digitMax) {
+  const counts = new Array(digitMax + 1).fill(0);
+  for (const d of draws) counts[d.digits[position]]++;
+  const total = draws.length;
+  const exp = total / (digitMax + 1);
+  let chi2 = 0;
+  for (let n = 0; n <= digitMax; n++) chi2 += ((counts[n] - exp) ** 2) / exp;
+  const df = digitMax;
+  const p = chi2UpperP(chi2, df);
+  const verdict = p < 0.001 ? "✗ 高度偏离均匀" : p < 0.01 ? "⚠ 偏离均匀（1% 水平）" : "✔ 与均匀一致";
+  console.log(
+    `  ${label} 频率: 期望 ${exp.toFixed(1)} 期/数字 | 实测 ${Math.min(...counts)}~${Math.max(...counts)} | ` +
+      `卡方 ${chi2.toFixed(2)} (df=${df}, p=${p < 0.001 ? "<0.001" : p.toFixed(3)}) → ${verdict}`
+  );
+  if (p < 0.01) {
+    const mid = Math.floor(draws.length / 2);
+    const seg = (ds) => {
+      const c = new Array(digitMax + 1).fill(0);
+      for (const d of ds) c[d.digits[position]]++;
+      const e = ds.length / (digitMax + 1);
+      let x = 0;
+      for (let n = 0; n <= digitMax; n++) x += ((c[n] - e) ** 2) / e;
+      return { chi2: x, p: chi2UpperP(x, df), n: ds.length };
+    };
+    const a = seg(draws.slice(0, mid));
+    const b = seg(draws.slice(mid));
+    console.log(
+      `     分期诊断: 前半(${a.n}期) 卡方 ${a.chi2.toFixed(1)} p=${a.p < 0.001 ? "<0.001" : a.p.toFixed(3)} | ` +
+        `后半(${b.n}期) 卡方 ${b.chi2.toFixed(1)} p=${b.p < 0.001 ? "<0.001" : b.p.toFixed(3)}`
+    );
+  }
+}
+
+/**
+ * 排列五：数字型玩法，5 位有序数字、允许重复与前导 0。
+ * 注意这里**不能**复用组合型的校验（会以「重复号码」误报，且不接受 0）。
+ */
+function auditDigitGame(cfg) {
+  let data;
+  try {
+    data = JSON.parse(readFileSync(join(DATA_DIR, `${cfg.key}.json`), "utf8"));
+  } catch (e) {
+    fail(`${cfg.name}: data/${cfg.key}.json 读取失败（${e.message}）`);
+    return;
+  }
+  const draws = data.draws ?? [];
+  console.log(`=== ${cfg.name}（${cfg.key}）${draws.length} 期 | ${draws[0]?.date} ~ ${draws.at(-1)?.date} | updatedAt=${data.updatedAt} ===`);
+  if (!draws.length) {
+    fail(`${cfg.name}: 数据为空`);
+    return;
+  }
+
+  const codes = new Set();
+  let prev = "";
+  let repeatDraws = 0;
+  let leadingZero = 0;
+  const today = new Date().toISOString().slice(0, 10);
+  for (let i = 0; i < draws.length; i++) {
+    const d = draws[i];
+    const at = `第${i + 1}条 ${d.code}/${d.date}`;
+    if (codes.has(d.code)) fail(`${at}: 期号重复`);
+    codes.add(d.code);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d.date)) fail(`${at}: 日期格式异常`);
+    if (d.date < prev) fail(`${at}: 日期未升序`);
+    if (d.date > today) fail(`${at}: 日期在未来`);
+    prev = d.date;
+    if (!Array.isArray(d.digits) || d.digits.length !== cfg.positions)
+      fail(`${at}: 位数 ${d.digits?.length}（应 ${cfg.positions}）`);
+    for (const n of d.digits) {
+      if (!Number.isInteger(n) || n < 0 || n > cfg.digitMax) fail(`${at}: 数字越界 ${n}（合法 0-${cfg.digitMax}）`);
+    }
+    if (new Set(d.digits).size < d.digits.length) repeatDraws++;
+    if (d.digits[0] === 0) leadingZero++;
+  }
+  console.log(`  期号唯一 ${codes.size === draws.length ? "✔" : "✗"} | 位数与取值范围检查完成（允许重复与 0）`);
+  console.log(
+    `  含重复数字 ${repeatDraws} 期（${((repeatDraws / draws.length) * 100).toFixed(1)}%）| 首位为 0 ${leadingZero} 期` +
+      `（理论含重复 ≈${(100 * (1 - (10 * 9 * 8 * 7 * 6) / 1e5)).toFixed(1)}%）`
+  );
+  for (let p = 0; p < cfg.positions; p++) digitFrequencyCheck(cfg.positionNames[p], draws, p, cfg.digitMax);
+}
+
+for (const key of DIGIT_GAME_KEYS) {
+  auditDigitGame({ ...P5_CONFIG, key });
   console.log("");
 }
 

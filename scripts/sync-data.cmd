@@ -22,7 +22,8 @@ rem NOTE: npm is npm.cmd on Windows - WITHOUT "call" control transfers to it
 rem permanently and this script would end right here (never commit/push)
 call npm run fetch >>"%LOG%" 2>&1
 
-git add data/dlt.json data/ssq.json
+rem data/p5.json 必须在这里一并 add：漏掉它，排列五的新数据永远不会被提交上线
+git add data/dlt.json data/ssq.json data/p5.json
 git diff --cached --quiet
 if errorlevel 1 (
   git commit -m "chore(data): scheduled sync of draw data" >>"%LOG%" 2>&1

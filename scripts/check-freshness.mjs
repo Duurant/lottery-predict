@@ -16,10 +16,11 @@ import { fileURLToPath } from "node:url";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const DATA_DIR = join(ROOT, "data");
 
-// 开奖日（0=周日）：大乐透周一/三/六，双色球周二/四/日，与 src/lib/games.ts 保持一致
+// 各彩种开奖规律（与 src/lib/games.ts、src/lib/digit.ts 保持一致）
 const GAMES = [
-  { key: "dlt", name: "超级大乐透", file: "dlt.json", drawDays: [1, 3, 6] },
-  { key: "ssq", name: "双色球", file: "ssq.json", drawDays: [2, 4, 0] },
+  { key: "dlt", name: "超级大乐透", file: "dlt.json", drawDays: [1, 3, 6], drawTime: "21:25" },
+  { key: "ssq", name: "双色球", file: "ssq.json", drawDays: [2, 4, 0], drawTime: "21:15" },
+  { key: "p5", name: "排列五", file: "p5.json", drawDays: [0, 1, 2, 3, 4, 5, 6], drawTime: "20:30" },
 ];
 
 const GRACE_HOURS = 18; // 官方接口录入延迟可达半天以上；开奖 18 小时后仍缺当期才告警，
@@ -34,8 +35,14 @@ function beijingNow() {
   return new Date(Date.now() + 8 * 3600 * 1000);
 }
 
+/** 北京时间的开奖时刻 → 当天对应的 UTC 时刻（不再硬编码 21:30，各彩种开奖时间不同） */
+function drawEpochUtc(y, m, d, drawTime) {
+  const [hh, mm] = drawTime.split(":").map(Number);
+  return Date.UTC(y, m, d, hh - 8, mm);
+}
+
 // 往前找最近一个「开奖时刻距今已超过 GRACE_HOURS」的开奖日，返回 YYYY-MM-DD 或 null
-function latestStaleDrawDay(drawDays, nowBeijing) {
+function latestStaleDrawDay(drawDays, drawTime, nowBeijing) {
   for (let back = 0; back <= 7; back++) {
     const t = new Date(nowBeijing.getTime() - back * 86400 * 1000);
     const y = t.getUTCFullYear();
@@ -43,8 +50,7 @@ function latestStaleDrawDay(drawDays, nowBeijing) {
     const d = t.getUTCDate();
     const weekday = new Date(Date.UTC(y, m, d, 12)).getUTCDay();
     if (!drawDays.includes(weekday)) continue;
-    // 北京 21:30 开奖（实际 21:15-21:25）→ 对应 UTC 13:30
-    const drawEpoch = Date.UTC(y, m, d, 13, 30);
+    const drawEpoch = drawEpochUtc(y, m, d, drawTime);
     const hoursSince = (Date.now() - drawEpoch) / 3600 / 1000;
     if (hoursSince < GRACE_HOURS) continue;
     return `${y}-${pad2(m + 1)}-${pad2(d)}`;
@@ -56,7 +62,7 @@ let failed = false;
 const nowBeijing = beijingNow();
 
 for (const g of GAMES) {
-  const expect = latestStaleDrawDay(g.drawDays, nowBeijing);
+  const expect = latestStaleDrawDay(g.drawDays, g.drawTime, nowBeijing);
   const file = join(DATA_DIR, g.file);
   if (!existsSync(file)) {
     console.error(`  ✗ ${g.name}：${g.file} 不存在`);

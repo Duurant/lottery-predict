@@ -3,16 +3,17 @@
  * 开奖数据抓取脚本
  *
  * 数据源（官方）：
- *  - 大乐透：中国体彩网 webapi.sporttery.cn（分页 JSON 接口）
+ *  - 大乐透：中国体彩网 webapi.sporttery.cn（分页 JSON 接口，gameNo=85）
  *  - 双色球：中国福利彩票官网 www.cwl.gov.cn（JSON 接口，需浏览器 UA + Referer）
+ *  - 排列五：中国体彩网 webapi.sporttery.cn（同上，gameNo=350133），数字型玩法
  *
  * 用法：
  *  - npm run fetch            增量抓取（默认）：已有数据则只抓到与本地重叠为止
  *  - npm run fetch -- --full  全量抓取
- *  - npm run fetch -- --only dlt   只抓大乐透
- *  - npm run fetch -- --only ssq   只抓双色球
+ *  - npm run fetch -- --only dlt|ssq|p5   只抓指定彩种
  *
- * 输出：data/dlt.json / data/ssq.json（按开奖日期升序，紧凑 JSON）
+ * 输出：data/dlt.json / data/ssq.json（红蓝组合型，red/blue 字段升序）
+ *       data/p5.json（数字型，digits 字段为 5 位有序数字，允许重复与前导 0）
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -37,6 +38,7 @@ const GAMES = {
     file: "dlt.json",
     drawDays: [1, 3, 6], // 周一、三、六（北京时间）
     drawTime: "21:25",
+    kind: "combo",
     validate: (d) => {
       assertSet(d.red, 5, 1, 35, "前区");
       assertSet(d.blue, 2, 1, 12, "后区");
@@ -48,11 +50,21 @@ const GAMES = {
     file: "ssq.json",
     drawDays: [2, 4, 0], // 周二、四、日（北京时间）
     drawTime: "21:15",
+    kind: "combo",
     validate: (d) => {
       assertSet(d.red, 6, 1, 33, "红球");
       assertSet(d.blue, 1, 1, 16, "蓝球");
     },
     fetchAll: fetchSsq,
+  },
+  p5: {
+    name: "排列五",
+    file: "p5.json",
+    drawDays: [0, 1, 2, 3, 4, 5, 6], // 每日开奖
+    drawTime: "20:30",
+    kind: "digit",
+    validate: (d) => assertDigits(d.digits, 5, 0, 9, "开奖号码"),
+    fetchAll: fetchP5,
   },
 };
 
@@ -64,6 +76,20 @@ function assertSet(nums, count, min, max, label) {
       throw new Error(`${label}号码 ${n} 超出范围 ${min}-${max}`);
   }
   if (new Set(nums).size !== count) throw new Error(`${label}存在重复号码`);
+}
+
+/**
+ * 数字型校验（排列五）：固定位数、每位 0-9。
+ * 与 assertSet 的关键差别：**允许重复数字、允许 0、且位置有意义**，
+ * 不能复用 assertSet（它会以「存在重复号码」拒绝合法开奖，且不接受 0）。
+ */
+function assertDigits(digits, count, min, max, label) {
+  if (!Array.isArray(digits) || digits.length !== count)
+    throw new Error(`${label}应为 ${count} 位，实际 ${digits?.length}`);
+  for (const n of digits) {
+    if (!Number.isInteger(n) || n < min || n > max)
+      throw new Error(`${label}第 ${digits.indexOf(n) + 1} 位 ${n} 超出范围 ${min}-${max}`);
+  }
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -207,6 +233,74 @@ async function fetchSsq(existingCodes) {
   return draws;
 }
 
+/* ---------------- 排列五（数字型） ---------------- */
+
+/**
+ * 解析排列五开奖结果：优先按分隔符切分，若是不含分隔符的紧凑串（如 "05198"）则逐字符取位。
+ * **不能整体 parseInt**：那样会把 "05198" 读成 5198（丢掉前导 0），而前导 0 是合法开奖。
+ */
+function parseP5Digits(raw) {
+  const parts = raw.split(/[,，\s]+/).filter(Boolean);
+  if (parts.length === 5) {
+    const nums = parts.map((s) => parseInt(s, 10));
+    return nums.every((n) => Number.isInteger(n) && n >= 0 && n <= 9) ? nums : [];
+  }
+  const compact = raw.replace(/[^0-9]/g, "");
+  if (compact.length === 5) return [...compact].map((c) => parseInt(c, 10));
+  return [];
+}
+
+/**
+ * 排列五：中国体彩网官方接口（gameNo=350133），每日开奖，与排列三同时开出。
+ * 结果是 5 位**有序**数字，允许重复、允许前导 0（如 "1 2 6 2 2"、"0 5 1 9 8"）。
+ */
+async function fetchP5(existingCodes) {
+  const headers = {
+    "User-Agent": UA,
+    Accept: "application/json, text/plain, */*",
+    Referer: "https://static.sporttery.cn/",
+  };
+  const draws = [];
+  const seen = new Set();
+  const pageSize = 100;
+  let pageNo = 1;
+  let pages = Infinity;
+  let overlap = false;
+
+  while (pageNo <= Math.min(pages, 400) && !overlap) {
+    const url = `https://webapi.sporttery.cn/gateway/lottery/getHistoryPageListV1.qry?gameNo=350133&provinceId=0&pageSize=${pageSize}&isVerify=1&pageNo=${pageNo}`;
+    const json = await getJson(url, headers);
+    if (json?.success !== true || json?.errorCode !== "0") {
+      throw new Error(`体彩接口返回错误：${json?.errorCode ?? "?"} ${json?.errorMessage ?? ""}`.trim());
+    }
+    const v = json?.value;
+    if (!v || !Array.isArray(v.list)) throw new Error("体彩接口返回结构异常：" + JSON.stringify(json).slice(0, 200));
+    if (v.list.length === 0 && pageNo === 1) {
+      throw new Error("体彩接口第 1 页返回空列表（可能被限流），请稍后重试");
+    }
+    pages = Number(v.pages) || 1;
+
+    for (const it of v.list) {
+      const code = String(it.lotteryDrawNum ?? "").trim();
+      const date = String(it.lotteryDrawTime ?? "").slice(0, 10);
+      const digits = parseP5Digits(String(it.lotteryDrawResult ?? "").trim());
+      if (!code || !/^\d{4}-\d{2}-\d{2}/.test(date) || digits.length !== 5) continue;
+      if (seen.has(code)) continue;
+      seen.add(code);
+      if (existingCodes.has(code) && !FULL) {
+        overlap = true; // 与本地数据重叠，本页抓完即可停止
+        continue;
+      }
+      draws.push({ code, date, digits });
+    }
+    process.stdout.write(`    排列五 第 ${pageNo}/${pages} 页（累计 ${draws.length} 期新数据）\r`);
+    pageNo++;
+    await sleep(300);
+  }
+  console.log("");
+  return draws;
+}
+
 /* ---------------- 主流程 ---------------- */
 
 function loadLocal(gameKey, game) {
@@ -267,7 +361,9 @@ async function runGame(key) {
     `  完成：共 ${merged.length} 期（新增 ${added}），范围 ${merged[0]?.code}（${merged[0]?.date}）→ ${latest?.code}（${latest?.date}）`
   );
   console.log(
-    `  最新开奖：${latest.date} [${latest.code}] 红区 ${latest.red.join(" ")} / 蓝区 ${latest.blue.join(" ")}`
+    game.kind === "digit"
+      ? `  最新开奖：${latest.date} [${latest.code}] ${latest.digits.join(" ")}`
+      : `  最新开奖：${latest.date} [${latest.code}] 红区 ${latest.red.join(" ")} / 蓝区 ${latest.blue.join(" ")}`
   );
   return true;
 }
