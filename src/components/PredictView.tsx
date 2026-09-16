@@ -2,10 +2,20 @@
 
 import { useMemo, useState } from "react";
 import Ball from "@/components/Ball";
+import CoveragePanel from "@/components/CoveragePanel";
 import Disclaimer from "@/components/Disclaimer";
 import EChart, { type EOption } from "@/components/EChart";
 import { backtestAll, runStrategy, STRATEGIES, type Pick, type StrategyId } from "@/lib/predict";
 import { GAMES, type Draw, type GameKey } from "@/lib/games";
+import { singleTicketHitVariance } from "@/lib/prize";
+
+/**
+ * 「实测最优」徽章的悬停依据。数字来自 `npm run fit`（全量 walk-forward + 配对检验，
+ * 见 scripts/fit-coverage.mjs / .verify/fit-report.json），不是营销话术：
+ * 说的是「同价位多注的覆盖率」，不是「单注命中率」。
+ */
+const COVER_BADGE_TITLE =
+  "实测依据（npm run fit，全量 walk-forward 配对检验）：同注数下「至少中得某奖级」大乐透 33.0% vs 机选 29.0%、双色球 32.1% vs 28.3%；「蓝区至少命中 1 个」大乐透 98.2% vs 84.9%、双色球 30.2% vs 26.3%（均 p<0.001）。单注平均命中与机选无显著差异——覆盖优化提高的是同价位至少中得一注的机会，不是单注命中率。";
 
 const TAG_STYLE: Record<Pick["tag"], string> = {
   热: "bg-red-500/20 text-red-300",
@@ -15,6 +25,8 @@ const TAG_STYLE: Record<Pick["tag"], string> = {
 };
 
 const COUNT_OPTIONS = [1, 3, 5, 8];
+
+const fmtPct = (x: number) => `${(x * 100).toFixed(1)}%`;
 
 function PickBalls({ picks, zone }: { picks: Pick[]; zone: "red" | "blue" }) {
   return (
@@ -55,9 +67,22 @@ export default function PredictView({
   );
 
   const comparison = useMemo(
-    () => (draws.length ? backtestAll(cfg, draws) : []),
-    [cfg, draws]
+    () => (draws.length ? backtestAll(cfg, draws, count) : []),
+    [cfg, draws, count]
   );
+
+  /** 回测图上的噪声带：随机期望 ±1.96SE（SE = sqrt(单注命中方差 / 回测期数)） */
+  const noiseBand = useMemo(() => {
+    if (!comparison.length) return null;
+    const draws_ = Math.max(comparison[0].draws, 1);
+    const se = Math.sqrt(singleTicketHitVariance(cfg) / draws_);
+    const e = comparison[0].expectation;
+    return {
+      se,
+      lo: Math.round((e - 1.96 * se) * 1000) / 1000,
+      hi: Math.round((e + 1.96 * se) * 1000) / 1000,
+    };
+  }, [comparison, cfg]);
 
   const comparisonChart = useMemo<EOption>(() => {
     const nameOf = (id: string) => STRATEGIES.find((s) => s.id === id)?.name ?? id;
@@ -86,6 +111,22 @@ export default function PredictView({
           data: comparison.map((b) => Math.round(b.avgHits * 1000) / 1000).reverse(),
           barWidth: 16,
           itemStyle: { color: "#f87171", borderRadius: [0, 4, 4, 0] },
+          // 噪声带：同一期望下，仅凭随机波动就可能出现的范围。各方案都落在带内，
+          // 说明它们的差异没有超出噪声——这正是「看起来更高」与「真的更高」的分界。
+          markArea: noiseBand
+            ? {
+                silent: true,
+                itemStyle: { color: "rgba(251,191,36,0.12)" },
+                data: [[{ xAxis: noiseBand.lo }, { xAxis: noiseBand.hi }]],
+                label: {
+                  show: true,
+                  position: "insideTop",
+                  color: "#fbbf24",
+                  fontSize: 10,
+                  formatter: `噪声带 ±1.96SE`,
+                },
+              }
+            : undefined,
           markLine: {
             symbol: "none",
             data: comparison.length
@@ -101,7 +142,7 @@ export default function PredictView({
         },
       ],
     };
-  }, [comparison]);
+  }, [comparison, noiseBand]);
 
   const gameBtn = (g: GameKey, label: string) => (
     <button
@@ -120,7 +161,8 @@ export default function PredictView({
       <section className="pt-2 text-center">
         <h1 className="text-2xl font-bold text-white">多方案智能预测</h1>
         <p className="mx-auto mt-2 max-w-2xl text-sm text-slate-400">
-          五种统计思路各有一套推荐逻辑，同一份数据、不同方案，结果各有侧重，并附历史回测对比。
+          六种统计思路各有一套推荐逻辑，同一份数据、不同方案，结果各有侧重，并附历史回测对比。
+          其中「覆盖优化」不预测号码，只优化同价位多注之间的号码分配。
         </p>
       </section>
 
@@ -139,23 +181,45 @@ export default function PredictView({
           </div>
 
           {/* 方案选择 */}
-          <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-5">
-            {STRATEGIES.map((s) => (
-              <button
-                key={s.id}
-                onClick={() => setStrategy(s.id)}
-                className={`rounded-xl border p-3 text-left transition-colors ${
-                  strategy === s.id
-                    ? "border-red-500/60 bg-red-500/10"
-                    : "border-slate-800 bg-slate-900/60 hover:border-slate-600"
-                }`}
-              >
-                <div className={`text-sm font-semibold ${strategy === s.id ? "text-red-300" : "text-white"}`}>
-                  {s.name}
-                </div>
-                <div className="mt-1 text-[11px] leading-snug text-slate-500">{s.tagline}</div>
-              </button>
-            ))}
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {STRATEGIES.map((s) => {
+              const isCover = s.id === "cover";
+              const active = strategy === s.id;
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => setStrategy(s.id)}
+                  className={`rounded-xl border p-3 text-left transition-colors ${
+                    active
+                      ? isCover
+                        ? "border-emerald-400/70 bg-emerald-500/10"
+                        : "border-red-500/60 bg-red-500/10"
+                      : isCover
+                        ? "border-emerald-500/40 bg-slate-900/60 hover:border-emerald-400/70"
+                        : "border-slate-800 bg-slate-900/60 hover:border-slate-600"
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className={`text-sm font-semibold ${
+                        active ? (isCover ? "text-emerald-300" : "text-red-300") : "text-white"
+                      }`}
+                    >
+                      {s.name}
+                    </span>
+                    {isCover && (
+                      <span
+                        title={COVER_BADGE_TITLE}
+                        className="rounded-full bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-medium text-emerald-300"
+                      >
+                        实测最优
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-1 text-[11px] leading-snug text-slate-500">{s.tagline}</div>
+                </button>
+              );
+            })}
           </div>
 
           {/* 推荐结果 */}
@@ -164,6 +228,14 @@ export default function PredictView({
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-base font-bold text-white">
                   {result.strategy.name}
+                  {result.strategy.id === "cover" && (
+                    <span
+                      title={COVER_BADGE_TITLE}
+                      className="ml-2 rounded-full bg-emerald-500/20 px-2 py-0.5 align-middle text-[10px] font-medium text-emerald-300"
+                    >
+                      实测最优
+                    </span>
+                  )}
                   <span className="ml-2 text-xs font-normal text-slate-500">
                     基于 {draws.length} 期历史 · 近 30 期窗口
                   </span>
@@ -215,6 +287,9 @@ export default function PredictView({
             </section>
           )}
 
+          {/* 覆盖优化专项：全量 walk-forward 的配对实测 */}
+          {result && strategy === "cover" && <CoveragePanel cfg={cfg} draws={draws} tickets={count} />}
+
           {/* 方案说明 + 分析 */}
           {result && (
             <div className="grid gap-4 lg:grid-cols-2">
@@ -262,7 +337,7 @@ export default function PredictView({
                 <h3 className="mb-2 text-sm font-semibold text-white">
                   本方案历史回测
                   <span className="ml-2 text-xs font-normal text-slate-500">
-                    最近 {result.analysis.backtest.draws} 期 · 每期用此前数据选号
+                    最近 {result.analysis.backtest.draws} 期 · {result.analysis.backtest.tickets} 注 · 每期用此前数据选号
                   </span>
                 </h3>
                 <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
@@ -280,9 +355,11 @@ export default function PredictView({
                   </div>
                   <div className="rounded-xl bg-slate-800/50 p-3 text-center">
                     <div className="text-lg font-bold tabular-nums text-white">
-                      {(result.analysis.backtest.zeroRate * 100).toFixed(0)}%
+                      {(result.analysis.backtest.zeroAllRate * 100).toFixed(0)}%
                     </div>
-                    <div className="mt-1 text-[11px] text-slate-500">颗粒无收占比</div>
+                    <div className="mt-1 text-[11px] text-slate-500" title="该批全部注都没命中任何号码的期数占比">
+                      全注落空占比
+                    </div>
                   </div>
                   <div className="rounded-xl bg-slate-800/50 p-3 text-center">
                     <div className="text-lg font-bold tabular-nums text-white">
@@ -292,8 +369,16 @@ export default function PredictView({
                   </div>
                 </div>
                 <p className="mt-3 text-xs leading-relaxed text-slate-500">
-                  回测中每期只用该期之前的历史数据选号，命中数＝推荐号码与实际开奖的交集（红区+蓝区）。
-                  可以看到各方案的平均命中都与随机期望处于同一水平——这正是随机事件的本质，请把推荐当娱乐，不要当依据。
+                  回测中每期只用该期之前的历史数据选号，单注命中数＝该注号码与实际开奖的交集（红区+蓝区），
+                  再按注数平均。各方案的「平均每期命中」都与随机期望、与黄色噪声带处于同一水平——这正是随机事件的本质。
+                  {result.strategy.id === "cover" ? (
+                    <>
+                      「覆盖优化」的差异只在覆盖度口径上（上方对比图），它的单注命中同样与机选一致：
+                      这不是预测能力，而是把同样的注数铺到了更多不同号码上。
+                    </>
+                  ) : (
+                    <>请把推荐当娱乐，不要当依据。</>
+                  )}
                 </p>
               </section>
             </div>
@@ -303,21 +388,27 @@ export default function PredictView({
           {comparison.length > 0 && (
             <section className="card">
               <h3 className="mb-1 text-sm font-semibold text-white">
-                五方案回测对比（{cfg.name}）
+                六方案回测对比（{cfg.name}）
                 <span className="ml-2 text-xs font-normal text-slate-500">
-                  最近 {comparison[0].draws} 期平均每期命中个数
+                  最近 {comparison[0].draws} 期 · {comparison[0].tickets} 注 · 平均命中按注数平均
                 </span>
               </h3>
               <EChart option={comparisonChart} height={220} />
+              <p className="mb-2 text-[11px] leading-relaxed text-slate-600">
+                黄色带＝随机期望 ±1.96 标准误（{noiseBand ? `${noiseBand.lo.toFixed(3)} ~ ${noiseBand.hi.toFixed(3)}` : ""}）：
+                只统计 {comparison[0].draws} 期时，仅凭随机波动就会出现这么大范围的高低差，落在带内说明差异不超出噪声。
+                「至少中奖」按官方奖级表判定，允许红蓝命中落在同一批的任意一注上。
+              </p>
               <div className="overflow-x-auto">
-                <table className="mt-2 w-full min-w-[560px] text-center text-xs">
+                <table className="mt-2 w-full min-w-[640px] text-center text-xs">
                   <thead>
                     <tr className="text-slate-500">
                       <th className="py-2 text-left font-normal">方案</th>
                       <th className="py-2 font-normal">平均命中</th>
                       <th className="py-2 font-normal">红区命中</th>
                       <th className="py-2 font-normal">蓝区命中</th>
-                      <th className="py-2 font-normal">颗粒无收</th>
+                      <th className="py-2 font-normal">至少中奖</th>
+                      <th className="py-2 font-normal">全注落空</th>
                       <th className="py-2 font-normal">最佳单期</th>
                     </tr>
                   </thead>
@@ -325,29 +416,57 @@ export default function PredictView({
                     {comparison.map((b) => {
                       const def = STRATEGIES.find((s) => s.id === b.strategy)!;
                       const isCurrent = b.strategy === strategy;
+                      const isCover = b.strategy === "cover";
                       return (
                         <tr
                           key={b.strategy}
-                          className={`border-t border-slate-800/60 ${isCurrent ? "text-red-300" : "text-slate-300"}`}
+                          className={`border-t border-slate-800/60 ${
+                            isCurrent
+                              ? isCover
+                                ? "text-emerald-300"
+                                : "text-red-300"
+                              : isCover
+                                ? "text-emerald-200/90"
+                                : "text-slate-300"
+                          }`}
                         >
                           <td className="py-2 text-left">
                             {def.name}
+                            {isCover && (
+                              <span
+                                title={COVER_BADGE_TITLE}
+                                className="ml-1.5 rounded-full bg-emerald-500/20 px-1.5 py-0.5 text-[10px] text-emerald-300"
+                              >
+                                实测最优
+                              </span>
+                            )}
                             {isCurrent && <span className="ml-1.5 text-[10px]">←当前</span>}
                           </td>
                           <td className="py-2 font-semibold">{b.avgHits.toFixed(3)}</td>
                           <td className="py-2">{b.avgRedHits.toFixed(2)}</td>
                           <td className="py-2">{b.avgBlueHits.toFixed(2)}</td>
-                          <td className="py-2">{(b.zeroRate * 100).toFixed(0)}%</td>
+                          <td className="py-2">{fmtPct(b.anyPrizeRate)}</td>
+                          <td className="py-2">{fmtPct(b.zeroAllRate)}</td>
                           <td className="py-2">{b.bestHits}</td>
                         </tr>
                       );
                     })}
                     <tr className="border-t border-slate-800/60 text-slate-500">
-                      <td className="py-2 text-left">随机期望</td>
+                      <td className="py-2 text-left">随机期望（单注）</td>
                       <td className="py-2">{comparison[0].expectation.toFixed(3)}</td>
-                      <td className="py-2" colSpan={4}>
+                      <td className="py-2" colSpan={5}>
                         纯随机选号的理论平均命中（({cfg.redCount}²/{cfg.redMax}) + ({cfg.blueCount}²/
-                        {cfg.blueMax})）
+                        {cfg.blueMax})），任何选号方式都相同
+                      </td>
+                    </tr>
+                    <tr className="text-slate-500">
+                      <td className="py-2 text-left">机选解析基准（{comparison[0].tickets} 注）</td>
+                      <td className="py-2">—</td>
+                      <td className="py-2">—</td>
+                      <td className="py-2">—</td>
+                      <td className="py-2">{fmtPct(comparison[0].batchExpectation.anyPrize)}</td>
+                      <td className="py-2" colSpan={2}>
+                        {comparison[0].tickets} 注独立随机的「至少中奖」概率（1−(1−p)^N）
                       </td>
                     </tr>
                   </tbody>

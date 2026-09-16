@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "fetch": "node scripts/fetch-data.mjs"
+    "fetch": "node scripts/fetch-data.mjs",
+    "fit": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/fit-coverage.mjs"
   },
   "dependencies": {
     "echarts": "^6.1.0",
