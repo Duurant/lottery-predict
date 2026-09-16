@@ -5,16 +5,19 @@
 ## 目录
 
 ```
-data/dlt.json, ssq.json   开奖数据（仓库内即数据源，按日期升序，紧凑 JSON 各约 200KB）
+data/dlt.json, ssq.json   组合型开奖数据（red/blue 数组，按日期升序；各约 200-440KB）
+data/p5.json              数字型开奖数据（digits 为 5 位有序数字，允许重复与前导 0）
 scripts/fetch-data.mjs    官方接口抓取（增量/全量，无第三方依赖）
 scripts/audit-data.mjs    数据体检（npm run audit，只读：结构校验 + 号码频率卡方 + 分期诊断）
 scripts/fit-coverage.mjs  覆盖优化参数拟合与验证（npm run fit → .verify/fit-report.json）
 scripts/check-freshness.mjs 数据新鲜度看门狗（CI 用，漏抓则 exit 1）
 scripts/sync-data.cmd     Windows 计划任务调用的「抓取→提交→pull/push」流程
-src/app/                  路由页面（/ /dlt /ssq /generator /predict /about）
-src/components/           交互组件，全部 "use client"（CoveragePanel 为覆盖优化实测面板）
+src/app/                  路由页面（/ /dlt /ssq /p5 /generator /p5/generator /predict /p5/predict /about）
+src/components/           交互组件（CoveragePanel 覆盖率面板；Digit* 为排列五数字型组件）
 src/lib/                  games.ts 彩种配置 / data.ts 数据读取 / stats.ts 统计基础 / generate.ts 生成器 /
-                          predict.ts 六种策略与回测 / coverage.ts 覆盖优化选号 / prize.ts 奖级表 / stat.ts 配对统计
+                          predict.ts 三档方案与回测 / coverage.ts 覆盖优化选号 / prize.ts 奖级表 / stat.ts 配对统计
+                          digit.ts 排列五类型配置奖级统计 / digit-data.ts 排列五数据读取（含 fs）/
+                          digit-predict.ts 排列五三档方案
 ```
 
 页面（`src/app/**/page.tsx`）是服务端组件，**只在构建期**通过 `src/lib/data.ts` 的 `loadGame()` 读 `data/*.json`（模块级缓存）；所有交互与图表在 `src/components/` 的客户端组件里。没有任何 API route、运行时数据请求或数据库。**数据更新后必须提交并推送 `data/*.json` 才会触发 Vercel 重新部署**，否则线上仍是旧数据。
@@ -26,7 +29,7 @@ npm install
 npm run dev            # http://localhost:3000
 npm run build          # 主要验证手段
 npm run start
-npm run fetch          # 增量抓取；追加 -- --full / -- --only dlt|ssq
+npm run fetch          # 增量抓取；追加 -- --full / -- --only dlt|ssq|p5
 npm run audit          # 数据体检（只读）：结构/范围/日期星期 + 号码频率卡方与分期诊断
 npm run fit            # 覆盖优化参数拟合与验证；-- --tickets N / -- --game dlt|ssq
 npx tsc --noEmit       # 类型检查（无 lint 脚本、无测试框架，二者都未配置）
@@ -36,23 +39,40 @@ npx tsc --noEmit       # 类型检查（无 lint 脚本、无测试框架，二�
 
 ## 数据链路（改动前务必读）
 
-- 两个彩种的**开奖星期与开奖时刻在 4 处各有副本**，改一处就必须同步：`src/lib/games.ts`（`GAMES`）、`scripts/fetch-data.mjs`（`GAMES`）、`scripts/check-freshness.mjs`（`GAMES`）、README。三处脚本/配置里有注释互相提示保持同步。
+- 各彩种的**开奖星期与开奖时刻在多处各有副本**，改一处必须同步：`src/lib/games.ts`（组合型 `GAMES`）、`src/lib/digit.ts`（`P5_CONFIG`）、`scripts/fetch-data.mjs`（`GAMES`）、`scripts/check-freshness.mjs`（`GAMES`）、README。排列五每日开奖且 20:30 开奖，与前两个彩种不同；`check-freshness.mjs` 已改为按各彩种 `drawTime` 计算开奖时刻（此前写死 21:30）。
 - 期号格式两彩种**故意不同**，勿「统一」：大乐透用官方短格式 `26105`，双色球用 `2026107`。不要再做补零/截断。
 - 时间一律北京时间。`check-freshness.mjs` 用 `Date.now() + 8h` 配合 `getUTC*` 读取墙上时间，勿改成依赖本机时区。
 - 官方接口屏蔽机房 IP（体彩 HTTP 567 / 福彩 403），**CI 内抓取必然失败**，`update-data.yml` 里的 `npm run fetch || echo "::warning::..."` 是刻意保留的兜底；真实抓取由本地 Windows 计划任务 `LotteryDataSync` 完成（`scripts/setup-sync-task.ps1` 注册，日志 `%USERPROFILE%\lottery-sync.log`）。不要为了「让 CI 变绿」而删除该容错或改成硬失败。
-- `data/*.json` 平时由 bot / 计划任务提交（`chore(data): ...`），改代码时不要顺手改数据文件。
+- `data/*.json` 平时由 bot / 计划任务提交（`chore(data): ...`），改代码时不要顺手改数据文件。新增彩种时**必须**同步 `scripts/sync-data.cmd` 的 `git add` 列表，否则本地计划任务永远不会把新数据提交上线（该文件历史上只 add dlt/ssq 两个文件）。
+- 客户端组件导入的 `src/lib/*` 模块**不能含 `node:fs` 等运行时内置模块导入**：打包器会把它们打进客户端 chunk 并直接构建失败（Turbopack: "the chunking context does not support external modules (request: node:fs)"）。现有拆分：`games.ts`↔`data.ts`、`digit.ts`↔`digit-data.ts`。类型导入用 `import type` 不受影响。
 - **大乐透 2007–2013 年前区号码分布显著偏高**（29–35 号出现次数约为期望的 1.3~1.55 倍，卡方 p<0.001；2014 年起恢复均匀，双色球全期均匀）。已与体彩官网接口逐条比对确认**官方历史记录本身如此**，不是本站抓取问题。因此：`npm run audit` 报出该偏离属已知情况，不要当 bug 去「修数据」；统计分析面板在选「全部历史」时会显示 `GAMES.dlt.historyNote` 提示，改这块文案前先重跑 `npm run audit` 复核数字。
 - 仓库路径含中文：`sync-data.cmd` 保持纯 ASCII 并用 `%~dp0..` 推根目录，`setup-sync-task.ps1` 里是硬编码路径——改动时注意非 ASCII 与 CRLF/编码问题。
 
-## 覆盖优化（cover）方案的约束
+## 三档方案的诚实性约束（改选号逻辑前必读）
 
-六个策略里只有「覆盖优化」对机选有**真实**优势，因此它的表述边界最容易写错：
+大乐透/双色球只有三档：`best`（最优＝覆盖优化·最大铺开）、`second`（次优＝覆盖优化·最小饱和铺开）、`random`（纯机选对照）。历史上有过的追热/搏冷/冷热结合/遗漏回归已按需求删除，不要再加回来——拟合结论是这些权重在验证段无显著作用（唯一过 Bonferroni 的一组在验证段差 0.00pp、p=1.000）。
 
-- 它提高的是**同价位多注的覆盖率**（至少中得某奖级 / 至少命中 k 个号），**不是单注命中率**。页面、徽章、README 一律不能写成「命中率更高 / 更准 / 能提高中奖概率」。
-- 单注平均命中（`avgHits`）与机选、与理论期望**必须保持无显著差异**，这是诚实性基准：`npm run fit` 输出的「单注平均命中」一行会检验它，`predict.ts` 的 `compareCoverage` 会把结果画在面板上。若这里变成显著差异，说明回测口径被改坏了。
-- 参数 `COVERAGE_PARAMS`（`src/lib/coverage.ts`）由 `npm run fit` 拟合得出，结论是「热/冷/遗漏权重无显著作用，铺开强度取最大」。改参数要重跑拟合、并把验证段结果写回注释，不要凭手感调。
-- 覆盖率口径（全量 walk-forward + 共同随机数配对 + 95% CI）在 `scripts/fit-coverage.mjs`（训练/验证切分、用于选参）与 `predict.ts` 的 `compareCoverage`（页面实测）两处实现，统计工具统一取自 `src/lib/stat.ts`——不要另写第三套口径。
-- 注数为 1 时无铺开空间，与机选逐期完全相同；`CoveragePanel` 会明确提示这一点。
+- 覆盖优化提高的是**同价位多注的覆盖率**（至少中得某奖级 / 至少命中 k 个号），**不是单注命中率**。页面、徽章、README 一律不能写成「命中率更高 / 更准 / 能提高中奖概率」。
+- 单注平均命中（`avgHits`）与机选、与理论期望**必须保持无显著差异**，这是诚实性基准：`npm run fit` 输出的「单注平均命中」一行会检验它，`compareCoverage` 会把结果画在面板上。若这里变成显著差异，说明回测口径被改坏了。
+- 参数由 `npm run fit` 拟合：`COVERAGE_PARAMS`（最优，最大铺开）与 `SECOND_PARAMS`（次优，「覆盖率不显著下降前提下最小铺开」，判据是与最优差距 ≤1SE）。次优**不取排名第二档**——实测 s60 的输出与最优几乎一致（5 注红区不同号 24.7 vs 25.0），该槽位会失去意义。改参数要重跑拟合并把验证段数字写回注释，不要凭手感调。
+- 覆盖率口径（全量 walk-forward + 共同随机数配对 + 95% CI）在 `scripts/fit-coverage.mjs`（训练/验证切分、选参）与 `predict.ts` 的 `compareCoverage`（页面实测）两处实现，统计工具统一取自 `src/lib/stat.ts`——不要另写第三套口径。
+- 注数为 1 时无铺开空间，与机选逐期完全相同；`CoveragePanel` 会明确提示。
+
+## 数字型玩法（排列五）的约束
+
+排列五与红蓝组合型是**两套并列的模型**，不要试图合并类型：`GAMES` 仍是 `dlt|ssq`，排列五走 `P5_CONFIG` + `DigitDraw`。把 `GAMES` 改成联合类型会让每个读 red/blue 的共享组件都要加类型收窄，而它服务的仍是同两个彩种。
+
+三个会**静默出错**的坑（数字型专用，改动时务必对照）：
+
+- **数字 0 是合法值**：现有组合型代码里大量 `for (n = 1; n <= max; n++)`、`counts.slice(1)`、`n >= 1` 过滤，对排列五会直接丢掉数字 0（不报错，只是永远不出现）。数字型一律用 `0..digitMax` 的闭区间遍历。
+- **数字可重复**：`assertSet`（fetch）与 `audit-data.mjs` 的组合型校验会以「存在重复号码」拒绝合法开奖；数字型必须走 `assertDigits` / `digitFrequencyCheck`（允许重复、允许 0，卡方用 df=9 且**不做**不放回尺度修正）。
+- **位置有意义**：任何 `sort` 都会毁掉开奖信息（`digits[0]` 是第一位，不是最小值）；前导 0 也不能被 `parseInt` 吃掉（结果串如 `0 5 1 9 8`、紧凑串 `05198`、甚至 `00904`）。
+
+其它约束：
+
+- `digit.ts` 被客户端组件引用，**不能出现 `node:fs` 之类的运行时导入**（否则 Turbopack 报 "the chunking context does not support external modules (request: node:fs)"）；读文件放在 `digit-data.ts`，与组合型 `games.ts` / `data.ts` 的拆分同理。
+- 排列五只有一个奖级（5 位全中，1/100000），任意选号概率相同：页面必须写明「三档中奖概率相同」，唯一真实优化是**去重**（机选 5 注出现重复注的概率约 0.01%，折算「每 10 万注期望中奖注数」为 5.000000 vs 4.999900）。实测 7723 期中机选只有约 0.75 期会出现重复注，所以「去重注数」一列两者都显示 5.000 属正常，看解析值那一列。不要给排列五编造「最优/更准」的说法。
+- 校验「选号方式不影响命中」的标准误：每注命中位数 SE = sqrt(p·(1−p)/(期数×注数))（5 位时为 0.0035），断言容差要给到 ~5SE（0.018），用 0.002 会把正常抽样波动误判为失败。
 
 ## 编码约定
 

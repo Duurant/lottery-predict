@@ -1,7 +1,9 @@
 import Link from "next/link";
 import Disclaimer from "@/components/Disclaimer";
+import DigitLatestDrawCard from "@/components/DigitLatestDrawCard";
 import LatestDrawCard from "@/components/LatestDrawCard";
 import { loadGame } from "@/lib/data";
+import { loadDigitGame } from "@/lib/digit-data";
 
 const FEATURES = [
   {
@@ -33,14 +35,15 @@ const FEATURES = [
 export default function Home() {
   const dlt = loadGame("dlt");
   const ssq = loadGame("ssq");
+  const p5 = loadDigitGame("p5");
 
   return (
     <div className="flex flex-col gap-8">
       {/* Hero */}
       <section className="pt-4 text-center">
         <h1 className="text-3xl font-bold text-white md:text-4xl">
-          大乐透 · 双色球
-          <span className="bg-gradient-to-r from-red-400 to-blue-400 bg-clip-text text-transparent">
+          大乐透 · 双色球 · 排列五
+          <span className="bg-gradient-to-r from-red-400 via-blue-400 to-violet-400 bg-clip-text text-transparent">
             {" "}
             数据实验室
           </span>
@@ -52,9 +55,10 @@ export default function Home() {
       </section>
 
       {/* 最新开奖 */}
-      <section className="grid gap-4 md:grid-cols-2">
+      <section className="grid gap-4 md:grid-cols-3">
         <LatestDrawCard game="dlt" data={dlt} />
         <LatestDrawCard game="ssq" data={ssq} />
+        <DigitLatestDrawCard data={p5} />
       </section>
 
       <Disclaimer />
@@ -79,7 +83,8 @@ export default function Home() {
       {/* 数据概况 */}
       <section className="card text-center text-xs text-slate-500">
         数据覆盖：大乐透 {dlt.draws.length} 期（{dlt.draws[0]?.date} 起） · 双色球{" "}
-        {ssq.draws.length} 期（{ssq.draws[0]?.date} 起，福彩公开接口数据窗口自 2013 年起）
+        {ssq.draws.length} 期（{ssq.draws[0]?.date} 起，福彩公开接口数据窗口自 2013 年起） · 排列五{" "}
+        {p5.draws.length} 期（{p5.draws[0]?.date} 起，每日开奖）
         {dlt.updatedAt && ` · 最近同步：${dlt.updatedAt.slice(0, 10)}`}
       </section>
     </div>

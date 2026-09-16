@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import Ball from "@/components/Ball";
 import Disclaimer from "@/components/Disclaimer";
@@ -77,7 +78,13 @@ export default function GeneratorView({
 
       <Disclaimer />
 
-      <div className="flex justify-center gap-2">
+      <div className="flex flex-wrap justify-center gap-2">
+        <Link
+          href="/p5/generator"
+          className="rounded-xl bg-slate-900 px-5 py-2 text-sm font-medium text-slate-400 transition-colors hover:text-white"
+        >
+          排列五
+        </Link>
         {(["dlt", "ssq"] as GameKey[]).map((g) => (
           <button
             key={g}

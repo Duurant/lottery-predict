@@ -11,9 +11,6 @@
  *  2. 数字可重复：不能用 Set 去重后比较长度的方式做合法性校验；
  *  3. 位置有意义：任何 sort 都会毁掉开奖信息，禁止对 digits 排序。
  */
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-
 export type DigitGameKey = "p5";
 
 export interface DigitDraw {
@@ -142,25 +139,4 @@ export function sumDistribution(draws: DigitDraw[], cfg: DigitGameConfig): { sum
   const counts = new Array<number>(cfg.positions * cfg.digitMax + 1).fill(0);
   for (const d of draws) counts[digitSum(d)]++;
   return counts.map((count, sum) => ({ sum, count }));
-}
-
-/* ---------------- 数据读取 ---------------- */
-
-const DATA_DIR = join(process.cwd(), "data");
-
-export interface DigitGameData {
-  game: string;
-  name: string;
-  updatedAt: string;
-  draws: DigitDraw[];
-}
-
-/**
- * 读取本地排列五数据（构建时执行，页面静态化后不再访问文件系统）。
- * 文件缺失时返回空数据集（数据由 scripts/fetch-data.mjs 生成）。
- */
-export function loadDigitGame(key: DigitGameKey = "p5"): DigitGameData {
-  const file = join(DATA_DIR, `${key}.json`);
-  if (!existsSync(file)) return { game: key, name: P5_CONFIG.name, updatedAt: "", draws: [] };
-  return JSON.parse(readFileSync(file, "utf8")) as DigitGameData;
 }

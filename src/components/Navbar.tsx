@@ -8,6 +8,7 @@ const LINKS = [
   { href: "/", label: "首页" },
   { href: "/dlt", label: "大乐透" },
   { href: "/ssq", label: "双色球" },
+  { href: "/p5", label: "排列五" },
   { href: "/generator", label: "号码生成" },
   { href: "/predict", label: "智能预测" },
   { href: "/about", label: "关于" },

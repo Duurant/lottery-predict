@@ -5,7 +5,17 @@ import type { MetadataRoute } from "next";
 const BASE_URL = process.env.SITE_URL ?? "https://lottery-predict.com";
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const routes = ["", "/dlt", "/ssq", "/generator", "/predict", "/about"];
+  const routes = [
+    "",
+    "/dlt",
+    "/ssq",
+    "/p5",
+    "/generator",
+    "/p5/generator",
+    "/predict",
+    "/p5/predict",
+    "/about",
+  ];
   return routes.map((r) => ({
     url: `${BASE_URL}${r}`,
     lastModified: new Date(),

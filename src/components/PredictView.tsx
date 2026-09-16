@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import Ball from "@/components/Ball";
 import CoveragePanel from "@/components/CoveragePanel";
@@ -167,7 +168,16 @@ export default function PredictView({
       ) : (
         <>
           {/* 彩种切换 */}
-          <div className="flex justify-center gap-2">{gameBtn("dlt", "超级大乐透")}{gameBtn("ssq", "双色球")}</div>
+          <div className="flex flex-wrap justify-center gap-2">
+            <Link
+              href="/p5/predict"
+              className="rounded-xl bg-slate-900 px-5 py-2 text-sm font-medium text-slate-400 transition-colors hover:text-white"
+            >
+              排列五
+            </Link>
+            {gameBtn("dlt", "超级大乐透")}
+            {gameBtn("ssq", "双色球")}
+          </div>
 
           {/* 方案选择 */}
           <div className="grid gap-2 sm:grid-cols-3">
