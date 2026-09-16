@@ -241,6 +241,13 @@ export default function StatsPanel({ draws, cfg }: { draws: Draw[]; cfg: GameCon
         ))}
       </div>
 
+      {/* 全部历史时的已知数据特征提示（如大乐透 2007–2013 年高位号偏多） */}
+      {win === 0 && cfg.historyNote && (
+        <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-200/90">
+          ℹ️ {cfg.historyNote}
+        </p>
+      )}
+
       {/* 冷热榜 */}
       <div className="grid gap-4 md:grid-cols-2">
         <section className="card">

@@ -2,10 +2,12 @@
 /**
  * 数据新鲜度校验
  *
- * 供 GitHub Actions 在每日抓取后调用：若「距开奖已超过 12 小时」的开奖日
+ * 供 GitHub Actions 在每日抓取后调用：若「距开奖已超过 GRACE_HOURS 小时」的开奖日
  * 仍未出现在本地数据中，则退出码 1，让 workflow 运行失败以便发现静默漏抓。
  *
- * 已知局限：法定休市（如春节）期间会连续误报，届时忽略即可。
+ * 注意：CI 内抓取本身是抓不到数据的（官方接口屏蔽机房 IP），真正的抓取由本地
+ * Windows 计划任务 LotteryDataSync 完成；本脚本在 CI 里的作用是「看门狗」——
+ * 发现数据不新鲜就报错。已知局限：法定休市（如春节）期间会连续误报，忽略即可。
  */
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";

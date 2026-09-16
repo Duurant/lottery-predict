@@ -34,6 +34,12 @@ export interface GameConfig {
   drawTime: string;
   /** 页面主题色（tailwind class 前缀色值） */
   accent: string;
+  /**
+   * 「统计范围 = 全部历史」时的已知数据特征提示。
+   * 只在经实测确认、且能与官方源逐条核对的情况下填写，避免把历史分期的分布差异
+   * 误读成当前规律（例：大乐透 2007–2013 年前区高位号显著偏多）。
+   */
+  historyNote?: string;
 }
 
 export const GAMES: Record<GameKey, GameConfig> = {
@@ -49,6 +55,8 @@ export const GAMES: Record<GameKey, GameConfig> = {
     drawDays: [1, 3, 6], // 周一、三、六
     drawTime: "21:25",
     accent: "#f59e0b",
+    historyNote:
+      "全部历史包含 2007–2013 年：该段前区 29–35 号的出现次数比理论期望高约 30%~55%（2014 年起恢复正常）。已与体彩官网接口逐条核对，官方历史记录本身如此、并非本站抓取问题；但「全部历史」的频率与冷热统计会受这一段影响，看当前规律建议用近 100 期。",
   },
   ssq: {
     key: "ssq",

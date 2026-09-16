@@ -7,6 +7,7 @@
 ```
 data/dlt.json, ssq.json   开奖数据（仓库内即数据源，按日期升序，紧凑 JSON 各约 200KB）
 scripts/fetch-data.mjs    官方接口抓取（增量/全量，无第三方依赖）
+scripts/audit-data.mjs    数据体检（npm run audit，只读：结构校验 + 号码频率卡方 + 分期诊断）
 scripts/fit-coverage.mjs  覆盖优化参数拟合与验证（npm run fit → .verify/fit-report.json）
 scripts/check-freshness.mjs 数据新鲜度看门狗（CI 用，漏抓则 exit 1）
 scripts/sync-data.cmd     Windows 计划任务调用的「抓取→提交→pull/push」流程
@@ -26,6 +27,7 @@ npm run dev            # http://localhost:3000
 npm run build          # 主要验证手段
 npm run start
 npm run fetch          # 增量抓取；追加 -- --full / -- --only dlt|ssq
+npm run audit          # 数据体检（只读）：结构/范围/日期星期 + 号码频率卡方与分期诊断
 npm run fit            # 覆盖优化参数拟合与验证；-- --tickets N / -- --game dlt|ssq
 npx tsc --noEmit       # 类型检查（无 lint 脚本、无测试框架，二者都未配置）
 ```
@@ -39,6 +41,7 @@ npx tsc --noEmit       # 类型检查（无 lint 脚本、无测试框架，二�
 - 时间一律北京时间。`check-freshness.mjs` 用 `Date.now() + 8h` 配合 `getUTC*` 读取墙上时间，勿改成依赖本机时区。
 - 官方接口屏蔽机房 IP（体彩 HTTP 567 / 福彩 403），**CI 内抓取必然失败**，`update-data.yml` 里的 `npm run fetch || echo "::warning::..."` 是刻意保留的兜底；真实抓取由本地 Windows 计划任务 `LotteryDataSync` 完成（`scripts/setup-sync-task.ps1` 注册，日志 `%USERPROFILE%\lottery-sync.log`）。不要为了「让 CI 变绿」而删除该容错或改成硬失败。
 - `data/*.json` 平时由 bot / 计划任务提交（`chore(data): ...`），改代码时不要顺手改数据文件。
+- **大乐透 2007–2013 年前区号码分布显著偏高**（29–35 号出现次数约为期望的 1.3~1.55 倍，卡方 p<0.001；2014 年起恢复均匀，双色球全期均匀）。已与体彩官网接口逐条比对确认**官方历史记录本身如此**，不是本站抓取问题。因此：`npm run audit` 报出该偏离属已知情况，不要当 bug 去「修数据」；统计分析面板在选「全部历史」时会显示 `GAMES.dlt.historyNote` 提示，改这块文案前先重跑 `npm run audit` 复核数字。
 - 仓库路径含中文：`sync-data.cmd` 保持纯 ASCII 并用 `%~dp0..` 推根目录，`setup-sync-task.ps1` 里是硬编码路径——改动时注意非 ASCII 与 CRLF/编码问题。
 
 ## 覆盖优化（cover）方案的约束
@@ -63,7 +66,7 @@ npx tsc --noEmit       # 类型检查（无 lint 脚本、无测试框架，二�
 ## 已知坑
 
 - **无头浏览器必须访问 `http://localhost:3000`，不要用 `127.0.0.1:3000`。** Next 16 dev 会拦截来自 `127.0.0.1` 的 `/_next` 资源（日志里是 `Blocked cross-origin request to Next.js dev resource /_next/hmr`），结果是页面文本照常渲染、但 **hydration 不执行**：所有按钮点击静默失效且控制台无报错，极易误判成自己改坏了组件。（`.harness-check/browser.mjs` 与 `.verify/check-cover.mjs` 都已按此设置。）
-- `src/lib/coverage.ts`、`prize.ts`、`stat.ts` 必须保持**只有 `import type`（编译期擦除）、没有运行时 import**：`scripts/fit-coverage.mjs` 靠 Node 的类型擦除直接 import 这几个 `.ts` 文件，新增运行时 import 会让 `npm run fit` 直接崩。（`games.ts`、`stats.ts` 只被 `import type` 引用，因此脚本也能加载。）
+- `scripts/fit-coverage.mjs` 用 Node 的类型擦除**直接 import `src/lib/` 下的 `.ts` 文件**（拿到的是运行时的 `GAMES`、`mulberry32`、算法本体，不只是类型）。因此 **`games.ts`、`stats.ts`、`coverage.ts`、`prize.ts`、`stat.ts` 这五个文件必须保持「只有 `import type`（编译期擦除）、没有运行时 import」**：一旦其中某个文件新增运行时 import（如 `import { x } from "./y"`），Node ESM 无法解析这种无扩展名路径，`npm run fit` 会直接崩。页面侧（webpack）不受此限制，但为保持脚本可用，这五个文件请勿引入运行时依赖。
 - 覆盖优化选号在 `spread` 极大时，已被本批用过的号码抽样键会下溢为 0（这是「尽量不重号」的实现方式）；`pickCoverTicket` 额外加了一个 `r * 1e-9` 的极小项，只为在「全批号码都用完、只能重复」时打破 0 与 0 的并列——去掉它会让 8 注的最后几注退化成完全相同的低号码注（白费注数）。
 - ECharts `tooltip.trigger: "axis"` 时 formatter 收到的是**参数数组**，必须 `ps[0]` 再取值，否则显示 `undefined`（`StatsPanel` 曾因此出错，正确写法见 `PredictView.tsx` / `CoveragePanel.tsx`）。
 - 生成器在条件过紧时会无解，需走「行数 0 + 黄色提示」路径，不得死循环（`.harness-check/report.txt` 覆盖了 `sumMax=20` 边界）。

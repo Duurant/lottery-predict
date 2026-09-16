@@ -85,9 +85,20 @@ npm run fit -- --game dlt  # 只跑一个彩种
 ## 数据来源
 
 - **大乐透**：中国体彩网 webapi.sporttery.cn（官方公开接口，需带浏览器 UA 与 Referer）
-- **双色球**：中国福利彩票官网 www.cwl.gov.cn（官方公开接口，需浏览器 UA + Referer）
+- **双色球**：中国福利彩票官网 www.cwl.gov.cn（官方公开接口，需带浏览器 UA + Referer）
+- 抓取脚本对每条记录做号码数量、范围与重复校验，保证入库数据可用
 
-数据由 `.github/workflows/update-data.yml` 每日 22:05（北京时间）自动抓取一次；`data/*.json` 有变化时自动提交并推送，触发 Vercel 重新部署。抓取脚本对每条记录做号码数量、范围与重复校验，保证入库数据可用。
+**更新链路**（线上实际机制，与直觉不同）：
+
+- 官方接口屏蔽海外机房 IP（体彩 HTTP 567 / 福彩 403），所以 **GitHub Actions 里抓不到数据**。
+  `update-data.yml` 每天按北京时间 22:05 / 23:35 / 次日 01:35 / 09:35 / 12:35 / 15:35 / 18:35
+  多次运行，抓取失败不阻断，最后用 `scripts/check-freshness.mjs` 校验数据新鲜度——漏抓就让
+  Actions 变红，起「看门狗」作用。
+- **数据实际由本地 Windows 计划任务 `LotteryDataSync` 抓取**（用 `scripts/setup-sync-task.ps1`
+  注册：每日 09:40 / 12:40 / 15:40 / 18:40 / 22:10 / 23:10 + 登录时触发；先抓取并本地提交，
+  再 pull --rebase + push，直连失败自动改走本机 7890 代理），推送后 Vercel 自动重新部署。
+- 因此数据能否更新取决于这台 Windows 机器是否在线；CI 只能发现漏抓，不能替代它。
+  数据体检可运行 `npm run audit`（格式/范围/去重/日期星期/号码频率卡方）。
 
 ## 技术栈
 
