@@ -83,6 +83,39 @@ export const RANDOM_PARAMS: CoverParams = {
 };
 
 /**
+ * 「次优方案」参数：在**覆盖率不显著下降**的前提下取最小的铺开强度。
+ *
+ * 判据来自 `npm run fit`：该档位的训练段覆盖率与最优差距不超过 1 个标准误。
+ * 这样得到的是一个真实可辨的选择——覆盖率几乎不变，但号码更集中：
+ *   大乐透：红区 s24（蓝区已饱和，仍取最大）
+ *   双色球：红区 s60、蓝区 s6
+ *
+ * 为什么不直接取「排名第二档」（s60）？实测该档位输出与最优几乎完全一致
+ * （大乐透 5 注红区不同号 24.7 vs 25.0），这个槽位就没有意义了。
+ *
+ * 验证段实测（5 注，与同注数机选逐期配对）：
+ *   大乐透：至少中奖 33.8% vs 机选 29.5%（+4.3pp, p=0.011）；蓝区≥1 98.5% vs 85.7%；红区≥2 61.2% vs 52.4%
+ *   双色球：至少中奖 30.0% vs 机选 27.1%（+2.9pp, p=0.004）；蓝区≥1 28.8% vs 25.5%；红区≥2 94.5% vs 85.0%
+ */
+export const SECOND_PARAMS: Record<GameKey, CoverParamsByZone> = {
+  dlt: {
+    red: { hotWeight: 0, dueWeight: 0, window: 30, spread: 24 },
+    blue: { hotWeight: 0, dueWeight: 0, window: 30, spread: MAX_SPREAD },
+  },
+  ssq: {
+    red: { hotWeight: 0, dueWeight: 0, window: 30, spread: 60 },
+    blue: { hotWeight: 0, dueWeight: 0, window: 30, spread: 6 },
+  },
+};
+
+/** 按「彩种 + 区 + 方案」取选号参数：最优=最大铺开、次优=温和铺开、机选=不铺开 */
+export function coverParams(key: GameKey, zone: CoverZone, id: "best" | "second" | "random"): CoverParams {
+  if (id === "random") return RANDOM_PARAMS;
+  const set = id === "best" ? COVERAGE_PARAMS[key] : SECOND_PARAMS[key];
+  return zone === "red" ? set.red : set.blue;
+}
+
+/**
  * FNV-1a 哈希 → 32 位种子。用于「同一期、同一方案、同一注序」得到可复现的随机流，
  * 这样拟合脚本里不同参数配置之间以及 cover / 机选之间是配对的（共同随机数），
  * 差值估计的方差更小，但不会引入偏差。
@@ -167,7 +200,11 @@ export function recentFreqAt(z: ZoneProfile, i: number, window: number): number[
 
 /**
  * 按参数给某区所有号码打分：热号占比 + 遗漏回补占比，各自归一化到 [0,1]。
- * 与页面「冷热结合」同源（0.6 热 / 0.4 回补），便于用户理解选号偏好。
+ *
+ * 注意：页面实际使用的参数（COVERAGE_PARAMS / SECOND_PARAMS）权重都是 0——
+ * `npm run fit` 的检验结论是热/冷/遗漏权重在验证段无显著作用，增益全部来自铺开几何。
+ * 这套权重逻辑保留下来只为让拟合脚本能继续检验「如果按热度/遗漏倾斜会怎样」，
+ * 不要在没有重跑拟合并拿到验证段证据的情况下把权重调成非 0。
  */
 export function zoneScore(z: ZoneProfile, i: number, params: CoverParams): number[] {
   const recent = recentFreqAt(z, i, Math.max(1, params.window));

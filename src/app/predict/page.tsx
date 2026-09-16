@@ -6,7 +6,7 @@ import type { Draw, GameKey } from "@/lib/games";
 export const metadata: Metadata = {
   title: "多方案智能预测",
   description:
-    "大乐透、双色球多方案号码推荐：热号追踪、冷号回补、冷热结合、遗漏回归、纯机选五种方案各出推荐号码并附历史回测对比。开奖为随机事件，内容仅供娱乐。",
+    "大乐透、双色球号码方案：最优/次优（覆盖优化，同价位覆盖更多号码）与纯机选对照，附全量回测、覆盖率配对检验与置信区间。开奖为随机事件，任何方案都无法提高单注中奖概率，内容仅供娱乐。",
 };
 
 export default function PredictPage() {

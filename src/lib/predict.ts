@@ -1,39 +1,35 @@
 /**
- * 多方案预测策略引擎
+ * 策略引擎
  *
- * 六种方案：热号追踪 / 冷号回补 / 冷热结合 / 遗漏回归 / 覆盖优化 / 纯机选基准
- * 每种方案输出：推荐号码（带理由标签）+ 方案分析（热冷概况、形态参考、历史回测命中对比）
+ * 三种方案：
+ *  - 最优方案：覆盖优化·最大铺开（同批各注尽量不重复，蓝区优先覆盖不同号码）
+ *  - 次优方案：覆盖优化·温和铺开（同一思路、铺开强度更小，号码更集中）
+ *  - 纯机选：均匀随机，作为对照组
  *
- * 说明：彩票开奖为独立随机事件，本引擎的「评分」只是对历史统计的趣味化呈现，
- * 任何方案都无法提高单注中奖概率，单注平均命中率也与随机基准处在同一水平——页面须向用户明示。
+ * 说明：彩票开奖为独立随机事件，单注命中期望 =（每注号码数 / 号码池）× 每注号码数，
+ * 对任何选号方式都相同——本引擎不预测号码，也无法提高单注中奖概率。三种方案的
+ * 单注平均命中都应与随机期望处于同一水平（页面回测与噪声带会显示这一点）。
  *
- * 唯一的例外是「覆盖优化」：它不改变单注期望，而是通过减少同批各注之间的号码重叠，
- * 提高同价位下「至少中得某奖级」的概率。这是组合数学结论（详见 coverage.ts），
- * 不是预测能力，页面文案须把这一层说清楚。
+ * 唯一的真实差异在「同价位多注的覆盖率」：减少各注之间的重叠可以降低重复投注的浪费，
+ * 从而提高「至少中得某奖级」的概率。原理与参数来源见 coverage.ts 与 npm run fit。
  */
 import type { Draw, GameConfig, GameKey } from "./games";
 import {
   buildCoverSet,
   buildProfile,
-  COVERAGE_PARAMS,
+  coverParams,
   hashSeed,
-  RANDOM_PARAMS,
+  omissionAt,
+  recentFreqAt,
   type ZoneProfile,
 } from "./coverage";
 import { batchAtLeastOne, judgePrize, singleBlueAnyProb, singlePrizeProb, singleRedGeProb } from "./prize";
 import { hitsOf, mean, pairedDiff, rateSe } from "./stat";
-import {
-  bigSmallRatio,
-  mulberry32,
-  oddEvenRatio,
-  stdDev,
-  sumOf,
-  type Zone,
-} from "./stats";
+import { bigSmallRatio, mulberry32, oddEvenRatio, stdDev, sumOf } from "./stats";
 
 /* ---------------- 方案定义 ---------------- */
 
-export type StrategyId = "hot" | "cold" | "mix" | "regress" | "cover" | "random";
+export type StrategyId = "best" | "second" | "random";
 
 export interface StrategyDef {
   id: StrategyId;
@@ -44,201 +40,59 @@ export interface StrategyDef {
 
 export const STRATEGIES: StrategyDef[] = [
   {
-    id: "hot",
-    name: "热号追踪",
-    tagline: "跟随近期高频号码",
+    id: "best",
+    name: "最优方案",
+    tagline: "同价覆盖最多号码",
     description:
-      "认为「热号短期内有延续惯性」：优先选取近 30 期出现频次最高的号码。适合相信强者恒强的玩家，选出的号码多为近期常客。",
+      "不猜号码，而是分配号码：红区让同批各注尽量不重复、蓝区优先覆盖不同号码，把每一注的钱都用在不同的号码组合上。开奖是均匀随机事件，它的单注命中期望与机选完全相同（见下方回测），但同样注数下「至少中得某奖级」的概率更高——收益来自减少各注之间的重复计数，属组合数学结论，不是预测能力。注数 ≥ 2 才有意义，且它不会让你中得更大的奖。",
   },
   {
-    id: "cold",
-    name: "冷号回补",
-    tagline: "押注久未出现的号码",
+    id: "second",
+    name: "次优方案",
+    tagline: "号码更集中，覆盖几乎不变",
     description:
-      "认为「冷号久未出现、该轮到了」：优先选取当前遗漏期数最长的号码。适合相信雨露均沾的玩家，选出的号码多为长期缺席者。",
-  },
-  {
-    id: "mix",
-    name: "冷热结合",
-    tagline: "热号 60% + 回补 40% 加权",
-    description:
-      "把「热号惯性」与「遗漏回补」按 6:4 加权合成评分：既保留近期高频号码，又照顾久未开出的号码，兼顾两端，是多数彩民常用的均衡思路。",
-  },
-  {
-    id: "regress",
-    name: "遗漏回归",
-    tagline: "遗漏超过自身均值即入场",
-    description:
-      "对每个号码用「实际遗漏 − 自身历史平均间隔」打分：某号当前遗漏明显超过它自己的平均节奏时得分最高，寻找「偏离个人周期」的号码。",
-  },
-  {
-    id: "cover",
-    name: "覆盖优化",
-    tagline: "红蓝分开铺开，同价覆盖更多号码",
-    description:
-      "不猜号码，而是分配号码：红区让同批各注尽量不重复，蓝区优先覆盖不同号码。开奖是均匀随机事件，单注命中期望与机选完全相同（见下方回测），但同样注数下「至少中得某奖级」的概率更高——收益来自减少各注之间的重复计数，属组合数学结论，不是预测能力。注数 ≥ 2 才有意义，且它不会让你中得更大的奖。",
+      "与最优方案同一套覆盖优化思路，但铺开强度取「覆盖率不显著下降前提下的最小值」（拟合判据：与最优差距 ≤1 个标准误），因此号码更集中、更接近传统选号观感。实测两种方案的覆盖率差异在噪声量级内，且都显著高于机选：真正的区别只是号码铺得多开。如果你不喜欢号码过于分散，选它。",
   },
   {
     id: "random",
-    name: "纯机选基准",
+    name: "纯机选（对照）",
     tagline: "均匀随机，作为对照组",
     description:
-      "完全均匀随机选号，不掺任何统计偏好。它同时是对照组：各方案的单注平均命中率应与它处于同一水平——这正是「开奖无法被预测」的直观体现；只有「覆盖优化」在批量覆盖口径上会与它有稳定差异。",
+      "完全均匀随机选号，不掺任何分布偏好。它同时是对照组：各方案的单注平均命中率都应与它处于同一水平——这正是「开奖无法被预测」的直观体现；只有覆盖率口径上，覆盖优化的两种方案会与它有稳定差异（多注时）。",
   },
 ];
 
-/* ---------------- 快速号码画像 ---------------- */
+/* ---------------- 号码画像（信息展示用） ---------------- */
 
-interface FastZone {
-  max: number;
-  pick: number;
-  /** 每个号码出现的期索引（升序），索引 1..max */
-  hits: number[][];
-  total: number;
+const WINDOW = 30;
+const BACKTEST_DRAWS = 100;
+/** 单注形态约束的重试上限（和值区间 + 红区不全奇/全偶） */
+const SHAPE_TRIES = 60;
+
+/** 某区在一期里的号码个数与上限 */
+function zoneSpec(cfg: GameConfig, zone: "red" | "blue"): { max: number; pick: number } {
+  return zone === "red"
+    ? { max: cfg.redMax, pick: cfg.redCount }
+    : { max: cfg.blueMax, pick: cfg.blueCount };
 }
 
-function makeFastZone(draws: Draw[], zone: Zone, max: number): FastZone {
-  const hits: number[][] = Array.from({ length: max + 1 }, () => []);
-  for (let i = 0; i < draws.length; i++) {
-    const nums = zone === "red" ? draws[i].red : draws[i].blue;
-    for (const n of nums) hits[n].push(i);
-  }
-  return { max, pick: zone === "red" ? draws[0]?.red.length ?? 0 : draws[0]?.blue.length ?? 0, hits, total: draws.length };
-}
-
-/** 小于 i 的最后一个命中索引（二分） */
-function lastHitBefore(hits: number[], i: number): number {
-  let lo = 0;
-  let hi = hits.length - 1;
-  let ans = -1;
-  while (lo <= hi) {
-    const mid = (lo + hi) >> 1;
-    if (hits[mid] < i) {
-      ans = mid;
-      lo = mid + 1;
-    } else hi = mid - 1;
-  }
-  return ans;
-}
-
-/** 截止索引 i（不含 i）时，每号遗漏期数 */
-function omissionAt(z: FastZone, i: number): number[] {
-  const out = new Array<number>(z.max + 1);
-  for (let n = 1; n <= z.max; n++) {
-    const k = lastHitBefore(z.hits[n], i);
-    out[n] = k >= 0 ? i - 1 - z.hits[n][k] : i;
-  }
-  return out;
-}
-
-/** 截止索引 i 时，近 w 期每号出现次数 */
-function recentFreqAt(z: FastZone, i: number, w: number): number[] {
-  const out = new Array<number>(z.max + 1).fill(0);
-  const from = Math.max(0, i - w);
-  for (let n = 1; n <= z.max; n++) {
-    let c = 0;
-    for (const idx of z.hits[n]) if (idx >= from && idx < i) c++;
-    out[n] = c;
-  }
-  return out;
-}
-
-/** 截止索引 i 时，每号历史平均间隔（-1 表示未出现或只出现一次） */
-function avgGapAt(z: FastZone, i: number): number[] {
-  const out = new Array<number>(z.max + 1).fill(-1);
-  for (let n = 1; n <= z.max; n++) {
-    const hs = z.hits[n].filter((x) => x < i);
-    if (hs.length >= 2) {
-      let s = 0;
-      for (let k = 1; k < hs.length; k++) s += hs[k] - hs[k - 1];
-      out[n] = s / (hs.length - 1);
-    }
-  }
-  return out;
-}
-
-/* ---------------- 评分与选号 ---------------- */
-
-interface ScoredNum {
-  num: number;
-  score: number;
-  recent: number;
-  omission: number;
-}
-
-/** 按方案给某区所有号码打分 */
-function scoreZone(z: FastZone, i: number, id: StrategyId, window: number, rand: () => number): ScoredNum[] {
-  const recent = recentFreqAt(z, i, window);
+/**
+ * 把一个号码的频次/遗漏信息装进 Pick（仅供悬停提示，不参与选号）。
+ * 数据取自 coverage.ts 的画像函数，与选号口径同源。
+ */
+function picksOf(z: ZoneProfile, i: number, nums: number[]): Pick[] {
+  const recent = recentFreqAt(z, i, WINDOW);
   const omission = omissionAt(z, i);
-  const avgGap = avgGapAt(z, i);
-  const theoretical = z.max / z.pick;
-
-  const maxFreq = Math.max(...recent.slice(1)) || 1;
-  const out: ScoredNum[] = [];
-  for (let n = 1; n <= z.max; n++) {
-    let score = 0;
-    switch (id) {
-      case "hot":
-        score = recent[n];
-        break;
-      case "cold":
-        score = omission[n];
-        break;
-      case "mix": {
-        const hotNorm = recent[n] / maxFreq;
-        const dueNorm = Math.min(omission[n] / theoretical, 2) / 2;
-        score = 0.6 * hotNorm + 0.4 * dueNorm;
-        break;
-      }
-      case "regress": {
-        const gap = avgGap[n] > 0 ? avgGap[n] : theoretical;
-        score = omission[n] - gap;
-        break;
-      }
-      case "random":
-        score = rand();
-        break;
-    }
-    out.push({ num: n, score, recent: recent[n], omission: omission[n] });
-  }
-  return out;
+  return nums.map((n) => ({ num: n, recent: recent[n], omission: omission[n] }));
 }
 
-/** 按分数加权随机抽取 k 个号（不放回）：分数高的号更可能入选，但保留多样性 */
-function pickTopK(scored: ScoredNum[], k: number, rand: () => number): number[] {
-  const pool = scored.map((s) => ({ num: s.num, w: Math.max(s.score, 0) }));
-  // 平移保证权重为正（regress 等方案可能给负分）
-  const min = Math.min(...pool.map((p) => p.w));
-  const shift = min < 0 ? -min : 0;
-  for (const p of pool) p.w += shift + 0.05;
-
-  const picked: number[] = [];
-  for (let n = 0; n < k && pool.length > 0; n++) {
-    const total = pool.reduce((a, b) => a + b.w, 0);
-    let r = rand() * total;
-    let idx = pool.length - 1;
-    for (let j = 0; j < pool.length; j++) {
-      r -= pool[j].w;
-      if (r <= 0) {
-        idx = j;
-        break;
-      }
-    }
-    picked.push(pool[idx].num);
-    pool.splice(idx, 1);
-  }
-  return picked.sort((a, b) => a - b);
-}
-
-/* ---------------- 推荐组合与理由 ---------------- */
+/* ---------------- 推荐组合 ---------------- */
 
 export interface Pick {
   num: number;
-  /** 理由标签：热 / 回补 / 偏冷 / 均衡 */
-  tag: "热" | "回补" | "偏冷" | "均衡";
-  /** 近 window 期出现次数 */
+  /** 近 WINDOW 期出现次数（信息展示） */
   recent: number;
-  /** 当前遗漏期数 */
+  /** 当前遗漏期数（信息展示） */
   omission: number;
 }
 
@@ -248,6 +102,95 @@ export interface Combo {
   sum: number;
   oddEven: string;
   bigSmall: string;
+}
+
+/** 软性形态约束：和值区间 + 红区不全奇/不全偶 */
+function shapeOk(red: number[], sumLo: number, sumHi: number, pick: number): boolean {
+  const sum = red.reduce((a, b) => a + b, 0);
+  if (sum < sumLo || sum > sumHi) return false;
+  if (pick >= 5) {
+    const [odd, even] = oddEvenRatio(red);
+    if (odd === 0 || even === 0) return false;
+  }
+  return true;
+}
+
+function toCombo(
+  redNums: number[],
+  blueNums: number[],
+  redProfile: ZoneProfile,
+  blueProfile: ZoneProfile,
+  i: number
+): Combo {
+  const [odd] = oddEvenRatio(redNums);
+  const oddEven = redProfile.pick === 1 ? `${odd}:0` : `${odd}:${redNums.length - odd}`;
+  const [big, small] = bigSmallRatio(redNums, redProfile.max);
+  return {
+    red: picksOf(redProfile, i, redNums),
+    blue: picksOf(blueProfile, i, blueNums),
+    sum: redNums.reduce((a, b) => a + b, 0),
+    oddEven,
+    bigSmall: `${big}:${small}`,
+  };
+}
+
+/**
+ * 一批选号（展示用）：红蓝两区各自按方案参数铺开选号，并叠加形态约束。
+ * 形态约束是软性的：整批重试最多 SHAPE_TRIES 次，仍不满足就放弃约束直接输出，
+ * 保证页面永远有结果、不死循环。
+ */
+function buildCombos(
+  cfg: GameConfig,
+  draws: Draw[],
+  redProfile: ZoneProfile,
+  blueProfile: ZoneProfile,
+  i: number,
+  count: number,
+  id: StrategyId,
+  seed: number
+): Combo[] {
+  const sums = draws.slice(-100).map(sumOf);
+  const sumLo = Math.round(mean(sums) - 1.2 * stdDev(sums));
+  const sumHi = Math.round(mean(sums) + 1.2 * stdDev(sums));
+
+  for (let attempt = 0; attempt <= SHAPE_TRIES; attempt++) {
+    const relaxed = attempt === SHAPE_TRIES;
+    const rand = mulberry32(hashSeed(cfg.key, id, seed, attempt));
+    const redSet = buildCoverSet(redProfile, i, coverParams(cfg.key, "red", id), count, rand);
+    const blueSet = buildCoverSet(blueProfile, i, coverParams(cfg.key, "blue", id), count, rand);
+    if (!relaxed && !redSet.every((r) => shapeOk(r, sumLo, sumHi, redProfile.pick))) continue;
+    return redSet.map((r, t) => toCombo(r, blueSet[t], redProfile, blueProfile, i));
+  }
+  return [];
+}
+
+/* ---------------- 回测 ---------------- */
+
+/** 一期的一批号码 */
+interface Batch {
+  red: number[][];
+  blue: number[][];
+}
+
+/**
+ * 取某一期的一批号码。三种方案共用同一段代码，只差参数：
+ *  - best / second：红蓝各自铺开（同一批各注互相避让）
+ *  - random：不铺开 → 每注独立均匀随机（机选基准）
+ * 随机数流对同一期是同一个种子，因此不同方案之间、以及与机选之间都是配对可比的。
+ */
+function pickBatch(
+  cfg: GameConfig,
+  draws: Draw[],
+  i: number,
+  id: StrategyId,
+  tickets: number,
+  profiles: { red: ZoneProfile; blue: ZoneProfile }
+): Batch {
+  const rand = mulberry32(hashSeed(cfg.key, "batch", draws[i].code));
+  return {
+    red: buildCoverSet(profiles.red, i, coverParams(cfg.key, "red", id), tickets, rand),
+    blue: buildCoverSet(profiles.blue, i, coverParams(cfg.key, "blue", id), tickets, rand),
+  };
 }
 
 export interface BacktestResult {
@@ -290,197 +233,6 @@ function batchExpectations(
     redGe2: batchAtLeastOne(singleRedGeProb(cfg, 2), tickets),
     redGe3: batchAtLeastOne(singleRedGeProb(cfg, 3), tickets),
     blueAny: batchAtLeastOne(singleBlueAnyProb(cfg), tickets),
-  };
-}
-
-export interface StrategyResult {
-  strategy: StrategyDef;
-  combos: Combo[];
-  analysis: {
-    window: number;
-    hotTop: { num: number; count: number }[];
-    coldTop: { num: number; omission: number }[];
-    /** 推荐组合和值参考区间（近 100 期均值 ± 1.2σ） */
-    sumRange: [number, number];
-    /** 近 30 期红区奇偶比分布（"3:2" → 期数） */
-    oddEvenDist: [string, number][];
-    backtest: BacktestResult;
-  };
-}
-
-const WINDOW = 30;
-const BACKTEST_DRAWS = 100;
-
-function makeTags(picked: number[], z: FastZone, i: number): Pick[] {
-  const recent = recentFreqAt(z, i, WINDOW);
-  const omission = omissionAt(z, i);
-  const avgGap = avgGapAt(z, i);
-  const theoretical = z.max / z.pick;
-  // 窗口内每号理论期望出现次数（如大乐透前区 30×5/35 ≈ 4.3 次）
-  const expectedRecent = (WINDOW * z.pick) / z.max;
-  return picked.map((n) => {
-    const gap = avgGap[n] > 0 ? avgGap[n] : theoretical;
-    let tag: Pick["tag"] = "均衡";
-    if (recent[n] >= Math.max(3, expectedRecent * 1.4)) tag = "热";
-    else if (omission[n] >= gap * 1.8) tag = "回补";
-    else if (omission[n] >= gap * 1.2) tag = "偏冷";
-    return { num: n, tag, recent: recent[n], omission: omission[n] };
-  });
-}
-
-/** 把选定的一注号码组装成展示用组合（附理由标签与形态统计） */
-function toCombo(
-  redPicked: number[],
-  bluePicked: number[],
-  redZone: FastZone,
-  blueZone: FastZone,
-  i: number
-): Combo {
-  const [odd] = oddEvenRatio(redPicked);
-  const oddEven = redZone.pick === 1 ? `${odd}:0` : `${odd}:${redPicked.length - odd}`;
-  const [big, small] = bigSmallRatio(redPicked, redZone.max);
-  return {
-    red: makeTags(redPicked, redZone, i),
-    blue: makeTags(bluePicked, blueZone, i),
-    sum: redPicked.reduce((a, b) => a + b, 0),
-    oddEven,
-    bigSmall: `${big}:${small}`,
-  };
-}
-
-/** 软性形态约束：和值区间 + 红区不全奇/不全偶，最多尝试 60 次 */
-function shapeOk(red: number[], sumLo: number, sumHi: number, pick: number): boolean {
-  const sum = red.reduce((a, b) => a + b, 0);
-  if (sum < sumLo || sum > sumHi) return false;
-  if (pick >= 5) {
-    const [odd, even] = oddEvenRatio(red);
-    if (odd === 0 || even === 0) return false; // 不允许全奇/全偶
-  }
-  return true;
-}
-
-function buildCombo(
-  redZone: FastZone,
-  blueZone: FastZone,
-  i: number,
-  id: StrategyId,
-  window: number,
-  rand: () => number,
-  sumLo: number,
-  sumHi: number
-): Combo {
-  let redPicked: number[] = [];
-  for (let t = 0; t < 60; t++) {
-    const scored = scoreZone(redZone, i, id, window, rand);
-    redPicked = pickTopK(scored, redZone.pick, rand);
-    if (shapeOk(redPicked, sumLo, sumHi, redZone.pick)) break;
-  }
-  const blueScored = scoreZone(blueZone, i, id, window, rand);
-  const bluePicked = pickTopK(blueScored, blueZone.pick, rand);
-
-  return toCombo(redPicked, bluePicked, redZone, blueZone, i);
-}
-
-/**
- * 覆盖优化的一批选号：红区、蓝区各自联合选号（同一批各注互相避让），
- * 而不是每注独立挑选。参数来自 COVERAGE_PARAMS（由 npm run fit 拟合）。
- */
-function buildCoverCombos(
-  cfg: GameConfig,
-  draws: Draw[],
-  redZone: FastZone,
-  blueZone: FastZone,
-  profiles: { red: ZoneProfile; blue: ZoneProfile },
-  i: number,
-  count: number,
-  seed: number
-): Combo[] {
-  const params = COVERAGE_PARAMS[cfg.key];
-  const sums = draws.slice(-100).map(sumOf);
-  const m = mean(sums);
-  const sd = stdDev(sums);
-  const sumLo = Math.round(m - 1.2 * sd);
-  const sumHi = Math.round(m + 1.2 * sd);
-
-  // 形态约束（和值区间、不全奇/全偶）在铺开选号上是软性的：整批重试，
-  // 最多 60 次；仍不满足则放弃约束直接输出，保证页面永远有结果、不死循环。
-  for (let attempt = 0; attempt <= 60; attempt++) {
-    const relaxed = attempt === 60;
-    const rand = mulberry32(hashSeed(cfg.key, "cover", seed, attempt));
-    const redSet = buildCoverSet(profiles.red, i, params.red, count, rand);
-    const blueSet = buildCoverSet(profiles.blue, i, params.blue, count, rand);
-    if (!relaxed && !redSet.every((r) => shapeOk(r, sumLo, sumHi, redZone.pick))) continue;
-    return redSet.map((r, t) => toCombo(r, blueSet[t], redZone, blueZone, i));
-  }
-  return [];
-}
-
-/* ---------------- 回测 ---------------- */
-
-/** 一期的一批号码 */
-interface Batch {
-  red: number[][];
-  blue: number[][];
-}
-
-/**
- * 取某一期的一批号码：
- *  - cover：整批联合铺开（同一批各注互相避让）
- *  - 其余方案：N 注各自独立选号（这正是机选基准的口径：注数越多，越可能出现重复投注）
- */
-function pickBatch(
-  cfg: GameConfig,
-  draws: Draw[],
-  i: number,
-  id: StrategyId,
-  tickets: number,
-  redZone: FastZone,
-  blueZone: FastZone,
-  profiles: { red: ZoneProfile; blue: ZoneProfile }
-): Batch {
-  if (id === "cover") {
-    const params = COVERAGE_PARAMS[cfg.key];
-    const rand = mulberry32(hashSeed(cfg.key, "batch", draws[i].code));
-    return {
-      red: buildCoverSet(profiles.red, i, params.red, tickets, rand),
-      blue: buildCoverSet(profiles.blue, i, params.blue, tickets, rand),
-    };
-  }
-  const red: number[][] = [];
-  const blue: number[][] = [];
-  for (let t = 0; t < tickets; t++) {
-    const rand = mulberry32(hashSeed(cfg.key, id, draws[i].code, t));
-    const combo = buildCombo(
-      redZone,
-      blueZone,
-      i,
-      id,
-      WINDOW,
-      rand,
-      Number.NEGATIVE_INFINITY,
-      Number.POSITIVE_INFINITY // 回测不做形态约束，纯看方案本身
-    );
-    red.push(combo.red.map((p) => p.num));
-    blue.push(combo.blue.map((p) => p.num));
-  }
-  return { red, blue };
-}
-
-/**
- * 机选基准的一批号码（N 注独立均匀随机）。与 cover 刻意使用同一随机数流
- * （同种子、同调用次数），因此两者的逐期差值可以做配对检验。
- */
-function pickRandomBatch(
-  cfg: GameConfig,
-  draws: Draw[],
-  i: number,
-  tickets: number,
-  profiles: { red: ZoneProfile; blue: ZoneProfile }
-): Batch {
-  const rand = mulberry32(hashSeed(cfg.key, "batch", draws[i].code));
-  return {
-    red: buildCoverSet(profiles.red, i, RANDOM_PARAMS, tickets, rand),
-    blue: buildCoverSet(profiles.blue, i, RANDOM_PARAMS, tickets, rand),
   };
 }
 
@@ -580,17 +332,12 @@ export function backtestStrategy(
   tickets = 1,
   B = BACKTEST_DRAWS
 ): BacktestResult {
-  const redZone = makeFastZone(draws, "red", cfg.redMax);
-  const blueZone = makeFastZone(draws, "blue", cfg.blueMax);
   const profiles = {
     red: buildProfile(draws, "red", cfg.redMax),
     blue: buildProfile(draws, "blue", cfg.blueMax),
   };
   const start = Math.max(draws.length - B, 1);
-
-  const w = walkBatch(cfg, draws, start, tickets, (i) =>
-    pickBatch(cfg, draws, i, id, tickets, redZone, blueZone, profiles)
-  );
+  const w = walkBatch(cfg, draws, start, tickets, (i) => pickBatch(cfg, draws, i, id, tickets, profiles));
 
   return {
     strategy: id,
@@ -610,25 +357,35 @@ export function backtestStrategy(
   };
 }
 
-/* ---------------- 覆盖优化 vs 纯机选（全量 walk-forward + 配对检验） ---------------- */
+/** 一次性回测全部方案（用于方案对比表） */
+export function backtestAll(cfg: GameConfig, draws: Draw[], tickets = 1, B = BACKTEST_DRAWS): BacktestResult[] {
+  return STRATEGIES.map((s) => backtestStrategy(cfg, draws, s.id, tickets, B));
+}
+
+/* ---------------- 覆盖率对比（全量 walk-forward + 配对检验） ---------------- */
 
 export type CoverageMetricKey = "anyPrize" | "blueAny" | "redGe2" | "redGe3";
 
-export interface CoverageMetricRow {
-  key: CoverageMetricKey;
-  label: string;
-  /** 该指标的含义说明 */
-  hint: string;
-  cover: number;
-  random: number;
-  /** N 注独立随机的解析基准（与实测机选对照，用于自校验） */
-  analytic: number;
+export interface CoverageStrategyCell {
+  rate: number;
   diff: number;
   ci95: [number, number];
   p: number;
   significant: boolean;
+}
+
+export interface CoverageMetricRow {
+  key: CoverageMetricKey;
+  label: string;
+  hint: string;
+  /** N 注独立随机的解析基准 */
+  analytic: number;
+  /** 实测机选（与各方案逐期配对） */
+  random: number;
   /** 机选基准的 ±1.96SE 噪声带 */
   randomBand: [number, number];
+  /** 各方案相对机选的配对结果 */
+  byStrategy: { id: StrategyId; name: string; cell: CoverageStrategyCell }[];
 }
 
 export interface CoverageReport {
@@ -639,98 +396,113 @@ export interface CoverageReport {
   fromDate: string;
   toDate: string;
   metrics: CoverageMetricRow[];
+  redMax: number;
+  blueMax: number;
+  /** 每期平均覆盖多少个不同号码 */
   distinct: {
-    coverRed: number;
-    randomRed: number;
-    coverBlue: number;
-    randomBlue: number;
-    redMax: number;
-    blueMax: number;
-  };
+    id: StrategyId;
+    name: string;
+    red: number;
+    blue: number;
+  }[];
+  /** 诚实性对照：每注平均命中（任何方案都应与人选机选无显著差异） */
   honesty: {
-    coverHits: number;
-    randomHits: number;
     expectation: number;
-    p: number;
+    byStrategy: { id: StrategyId; name: string; hits: number; randomHits: number; p: number }[];
   };
 }
 
 /**
- * 覆盖优化的全量 walk-forward 体检：每期只用该期之前的数据选号，
+ * 三种方案的全量 walk-forward 体检：每期只用该期之前的数据选号，
  * 与机选基准（同注数、同随机数流）逐期配对比较。
  *
- * 起点留出 200 期供窗口/遗漏统计，与 scripts/fit-coverage.mjs 的口径一致
- * （该脚本在全部历史上做过训练/验证切分，本函数是同一测量的页面侧实现）。
+ * 起点留出 200 期供窗口/遗漏统计，与 scripts/fit-coverage.mjs 的口径一致。
  */
-export function compareCoverage(
-  cfg: GameConfig,
-  draws: Draw[],
-  tickets: number,
-  from = 200
-): CoverageReport {
+export function compareCoverage(cfg: GameConfig, draws: Draw[], tickets: number, from = 200): CoverageReport {
   const profiles = {
     red: buildProfile(draws, "red", cfg.redMax),
     blue: buildProfile(draws, "blue", cfg.blueMax),
   };
-  const cover = walkBatch(cfg, draws, from, tickets, (i) =>
-    pickBatch(cfg, draws, i, "cover", tickets, makeFastZone(draws, "red", cfg.redMax), makeFastZone(draws, "blue", cfg.blueMax), profiles)
+  const ids = STRATEGIES.map((s) => s.id);
+  const walks = new Map<StrategyId, BatchWalk>(
+    ids.map((id) => [id, walkBatch(cfg, draws, from, tickets, (i) => pickBatch(cfg, draws, i, id, tickets, profiles))])
   );
-  const random = walkBatch(cfg, draws, from, tickets, (i) => pickRandomBatch(cfg, draws, i, tickets, profiles));
+  const randomWalk = walks.get("random")!;
 
   const defs: { key: CoverageMetricKey; label: string; hint: string }[] = [
     { key: "anyPrize", label: "至少中得某奖级", hint: "该批号码中任意一注中得任意奖级的期数占比" },
-    { key: "blueAny", label: "蓝区至少命中 1 个", hint: `该批号码中至少一注命中${cfg.blueName}的期数占比` },
+    { key: "blueAny", label: `蓝区至少命中 1 个`, hint: `该批号码中至少一注命中${cfg.blueName}的期数占比` },
     { key: "redGe2", label: `红区至少命中 2 个`, hint: `该批号码中至少一注命中 2 个${cfg.redName}号码的期数占比` },
-    { key: "redGe3", label: "红区至少命中 3 个", hint: `该批号码中至少一注命中 3 个${cfg.redName}号码的期数占比` },
+    { key: "redGe3", label: `红区至少命中 3 个`, hint: `该批号码中至少一注命中 3 个${cfg.redName}号码的期数占比` },
   ];
 
+  const randomRate = (k: CoverageMetricKey) => mean(randomWalk[k]);
   const metrics: CoverageMetricRow[] = defs.map((d) => {
-    const a = cover[d.key];
-    const b = random[d.key];
-    const st = pairedDiff(a, b);
-    const randomRate = mean(b);
-    const se = rateSe(randomRate, random.n);
+    const rRate = randomRate(d.key);
+    const se = rateSe(rRate, randomWalk.n);
     return {
       ...d,
-      cover: mean(a),
-      random: randomRate,
+      random: rRate,
       analytic: batchExpectations(cfg, tickets)[d.key],
-      diff: st.diff,
-      ci95: st.ci95,
-      p: st.p,
-      significant: st.significant,
-      randomBand: [randomRate - 1.96 * se, randomRate + 1.96 * se],
+      randomBand: [rRate - 1.96 * se, rRate + 1.96 * se],
+      byStrategy: STRATEGIES.filter((s) => s.id !== "random").map((s) => {
+        const w = walks.get(s.id)!;
+        const st = pairedDiff(w[d.key], randomWalk[d.key]);
+        return {
+          id: s.id,
+          name: s.name,
+          cell: { rate: mean(w[d.key]), diff: st.diff, ci95: st.ci95, p: st.p, significant: st.significant },
+        };
+      }),
     };
   });
-
-  const honesty = pairedDiff(cover.hits, random.hits);
 
   return {
     game: cfg.key,
     gameName: cfg.name,
     tickets,
-    draws: cover.n,
+    draws: randomWalk.n,
     fromDate: draws[from]?.date ?? "",
     toDate: draws.at(-1)?.date ?? "",
     metrics,
-    distinct: {
-      coverRed: cover.avgDistinctRed,
-      randomRed: random.avgDistinctRed,
-      coverBlue: cover.avgDistinctBlue,
-      randomBlue: random.avgDistinctBlue,
-      redMax: cfg.redMax,
-      blueMax: cfg.blueMax,
-    },
+    redMax: cfg.redMax,
+    blueMax: cfg.blueMax,
+    distinct: STRATEGIES.map((s) => {
+      const w = walks.get(s.id)!;
+      return { id: s.id, name: s.name, red: w.avgDistinctRed, blue: w.avgDistinctBlue };
+    }),
     honesty: {
-      coverHits: mean(cover.hits),
-      randomHits: mean(random.hits),
       expectation: singleTicketExpectation(cfg),
-      p: honesty.p,
+      byStrategy: STRATEGIES.map((s) => {
+        const w = walks.get(s.id)!;
+        return {
+          id: s.id,
+          name: s.name,
+          hits: mean(w.hits),
+          randomHits: mean(randomWalk.hits),
+          p: pairedDiff(w.hits, randomWalk.hits).p,
+        };
+      }),
     },
   };
 }
 
 /* ---------------- 主入口 ---------------- */
+
+export interface StrategyResult {
+  strategy: StrategyDef;
+  combos: Combo[];
+  analysis: {
+    window: number;
+    hotTop: { num: number; count: number }[];
+    coldTop: { num: number; omission: number }[];
+    /** 推荐组合和值参考区间（近 100 期均值 ± 1.2σ） */
+    sumRange: [number, number];
+    /** 近 30 期红区奇偶比分布（"3:2" → 期数） */
+    oddEvenDist: [string, number][];
+    backtest: BacktestResult;
+  };
+}
 
 /** 运行某个方案，生成推荐组合 + 方案分析 */
 export function runStrategy(
@@ -741,48 +513,20 @@ export function runStrategy(
   seed = Math.floor(Math.random() * 2 ** 31)
 ): StrategyResult {
   const def = STRATEGIES.find((s) => s.id === id)!;
-  const redZone = makeFastZone(draws, "red", cfg.redMax);
-  const blueZone = makeFastZone(draws, "blue", cfg.blueMax);
+  const redProfile = buildProfile(draws, "red", cfg.redMax);
+  const blueProfile = buildProfile(draws, "blue", cfg.blueMax);
   const i = draws.length;
 
-  // 和值参考区间：近 100 期和值均值 ± 1.2σ
-  const sums = draws.slice(-100).map(sumOf);
-  const m = mean(sums);
-  const sd = stdDev(sums);
-  const sumLo = Math.round(m - 1.2 * sd);
-  const sumHi = Math.round(m + 1.2 * sd);
+  const combos = buildCombos(cfg, draws, redProfile, blueProfile, i, combosCount, id, seed);
 
-  // 生成组合（去重）
-  let combos: Combo[] = [];
-  if (id === "cover") {
-    // 覆盖优化：整批联合选号（各注互相避让），并叠加形态约束
-    const profiles = {
-      red: buildProfile(draws, "red", cfg.redMax),
-      blue: buildProfile(draws, "blue", cfg.blueMax),
-    };
-    combos = buildCoverCombos(cfg, draws, redZone, blueZone, profiles, i, combosCount, seed);
-  } else {
-    const seen = new Set<string>();
-    let guard = 0;
-    while (combos.length < combosCount && guard < combosCount * 30) {
-      guard++;
-      const rand = mulberry32(hashSeed(cfg.key, id, seed, guard));
-      const c = buildCombo(redZone, blueZone, i, id, WINDOW, rand, sumLo, sumHi);
-      const key = c.red.map((p) => p.num).join(",") + "|" + c.blue.map((p) => p.num).join(",");
-      if (seen.has(key)) continue;
-      seen.add(key);
-      combos.push(c);
-    }
-  }
-
-  // 分析面板数据
-  const recent = recentFreqAt(redZone, i, WINDOW);
+  // 分析面板：近 30 期热号 / 当前遗漏最深（纯历史统计，与选号偏好无关）
+  const recent = recentFreqAt(redProfile, i, WINDOW);
   const hotTop = [...recent]
     .map((count, num) => ({ num, count }))
     .slice(1)
     .sort((a, b) => b.count - a.count)
     .slice(0, 5);
-  const omission = omissionAt(redZone, i);
+  const omission = omissionAt(redProfile, i);
   const coldTop = [...omission]
     .map((o, num) => ({ num, omission: o }))
     .slice(1)
@@ -798,6 +542,10 @@ export function runStrategy(
   }
   const oddEvenDist = [...dist.entries()].sort((a, b) => b[1] - a[1]);
 
+  const sums = draws.slice(-100).map(sumOf);
+  const sumLo = Math.round(mean(sums) - 1.2 * stdDev(sums));
+  const sumHi = Math.round(mean(sums) + 1.2 * stdDev(sums));
+
   return {
     strategy: def,
     combos,
@@ -812,7 +560,3 @@ export function runStrategy(
   };
 }
 
-/** 一次性回测全部方案（用于方案对比表） */
-export function backtestAll(cfg: GameConfig, draws: Draw[], tickets = 1, B = BACKTEST_DRAWS): BacktestResult[] {
-  return STRATEGIES.map((s) => backtestStrategy(cfg, draws, s.id, tickets, B));
-}

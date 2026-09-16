@@ -227,7 +227,7 @@ const TILT_ALPHA = 0.05 / (TILTS.length - 1);
  *   b) 铺开强度取最大：理论与实测曲线均显示「尽量不重号」对覆盖率单调有利，
  *      因此不做「最小饱和」式的收缩，只把曲线留给报告备查。
  */
-function fitZone({ runTrain, runValid, metric, zoneLabel }) {
+function fitZone({ runTrain, runValid, metric, zoneLabel, trainN }) {
   const noneTilt = { name: "none", hot: 0, due: 0 };
 
   const tiltTrain = TILTS.map((t) => ({ t, ev: runTrain(p(t, SPREAD_MAX)) }));
@@ -264,8 +264,23 @@ function fitZone({ runTrain, runValid, metric, zoneLabel }) {
       `  → 取最大铺开 s${SPREAD_MAX}（验证段单调递增：${monotone ? "是 ✔" : "否"}）`
   );
 
+  // 次优档位：在「覆盖率不显著下降」的前提下取**最小**铺开强度。
+  // 判据：该档位的训练段覆盖率与最优差距不超过 1 个标准误（rateSe）。
+  // 这样「次优方案」是一个真实可辨的选择——覆盖率几乎不变、但号码更集中
+  // （实测：大乐透红区不同号 24.4 vs 25.0）；若直接取「排名第二档」（s60），
+  // 输出与最优几乎完全一致（24.7 vs 25.0），这个槽位就没有意义了。
+  const bestCurveRate = Math.max(...curveTrain.map((c) => c.rate));
+  const satTol = rateSe(bestCurveRate, trainN);
+  const saturatedSpreads = curveTrain.filter((c) => bestCurveRate - c.rate <= satTol).map((c) => c.spread);
+  const secondSpread = saturatedSpreads.length ? Math.min(...saturatedSpreads) : SPREADS[SPREADS.length - 2];
+
   return {
     params: p(adopted, SPREAD_MAX),
+    secondParams: p(adopted, secondSpread),
+    secondSpread,
+    saturationTolerance: satTol,
+    secondCurveRate: curveTrain.find((c) => c.spread === secondSpread)?.rate ?? null,
+    bestCurveRate,
     tiltName: adopted.name,
     objective: metric,
     tiltTest: {
@@ -311,12 +326,14 @@ function fitGame(key, tickets) {
     runValid: (bp) => evaluate(cfg, profiles, draws, valid, RANDOM_PARAMS, bp, tickets),
     metric: "blueAny",
     zoneLabel: "蓝区",
+    trainN: train.length,
   });
   const redFit = fitZone({
     runTrain: (rp) => evaluate(cfg, profiles, draws, train, rp, RANDOM_PARAMS, tickets),
     runValid: (rp) => evaluate(cfg, profiles, draws, valid, rp, RANDOM_PARAMS, tickets),
     metric: "redGe2",
     zoneLabel: "红区",
+    trainN: train.length,
   });
   const finalParams = { red: redFit.params, blue: blueFit.params };
 
@@ -348,10 +365,7 @@ function fitGame(key, tickets) {
       jointRedCurve.map((x) => `s${x.spread}=${fmtPct(x.train)}/${fmtPct(x.valid)}`).join("  ")
   );
 
-  // --- 3) 最终配置与机选基准的全区间/验证段评价 ---
-  const coverFull = evaluate(cfg, profiles, draws, all, finalParams.red, finalParams.blue, tickets);
-  const coverValid = evaluate(cfg, profiles, draws, valid, finalParams.red, finalParams.blue, tickets);
-  const coverTrain = evaluate(cfg, profiles, draws, train, finalParams.red, finalParams.blue, tickets);
+  // --- 3) 机选基准 + 解析值自校验，然后对「最优 / 次优」两套配置分别详细评价 ---
   const randomFull = evaluate(cfg, profiles, draws, all, RANDOM_PARAMS, RANDOM_PARAMS, tickets);
   const randomValid = evaluate(cfg, profiles, draws, valid, RANDOM_PARAMS, RANDOM_PARAMS, tickets);
 
@@ -375,25 +389,48 @@ function fitGame(key, tickets) {
   console.log(`自校验（机选实测 vs 解析基准，2SE 内）：${selfOk ? "通过 ✔" : "未通过 ✘"}`);
 
   const metricNames = ["anyPrize", "blueAny", "redGe2", "redGe3", "allZero"];
-  const validRows = metricNames.map((m) => row(m, coverValid, randomValid));
-  const fullRows = metricNames.map((m) => row(m, coverFull, randomFull));
-  console.log(`验证段配对检验（${valid.length} 期）：`);
-  printRows(validRows);
-  console.log(`全区间配对检验（${all.length} 期）：`);
-  printRows(fullRows);
 
-  // --- 4) 诚实性检查：单注平均命中必须与随机期望同水平 ---
-  const honest = {
-    coverAvgHits: mean(coverFull.avgHits),
-    randomAvgHits: mean(randomFull.avgHits),
-    expectation: analytic.avgHits,
-    diff: pairedDiff(coverFull.avgHits, randomFull.avgHits),
+  /** 评价一套参数：训练/验证/全区间 + 配对检验 + 诚实性对照 */
+  const evaluateConfig = (cfgParams, label) => {
+    const fullEv = evaluate(cfg, profiles, draws, all, cfgParams.red, cfgParams.blue, tickets);
+    const validEv = evaluate(cfg, profiles, draws, valid, cfgParams.red, cfgParams.blue, tickets);
+    const trainEv = evaluate(cfg, profiles, draws, train, cfgParams.red, cfgParams.blue, tickets);
+    const vRows = metricNames.map((m) => row(m, validEv, randomValid));
+    const fRows = metricNames.map((m) => row(m, fullEv, randomFull));
+    const honestEv = {
+      avgHits: mean(fullEv.avgHits),
+      randomAvgHits: mean(randomFull.avgHits),
+      expectation: analytic.avgHits,
+      diff: pairedDiff(fullEv.avgHits, randomFull.avgHits),
+    };
+    console.log(`\n  【${label}】验证段配对检验（${valid.length} 期）：`);
+    printRows(vRows);
+    console.log(`  【${label}】全区间配对检验（${all.length} 期）：`);
+    printRows(fRows);
+    console.log(
+      `  【${label}】单注平均命中（全区间）：${honestEv.avgHits.toFixed(4)} vs 机选 ${honestEv.randomAvgHits.toFixed(4)} | ` +
+        `理论期望 ${honestEv.expectation.toFixed(4)} | 差 ${honestEv.diff.diff.toFixed(4)} p=${honestEv.diff.p.toFixed(3)} ` +
+        `${honestEv.diff.significant ? "★显著（需警惕）" : "无显著差异 ✔"}`
+    );
+    return {
+      params: cfgParams,
+      train: summarize(trainEv),
+      valid: summarize(validEv),
+      full: summarize(fullEv),
+      validRows: vRows,
+      fullRows: fRows,
+      honest: honestEv,
+    };
   };
-  console.log(
-    `单注平均命中（全区间）：覆盖优化 ${honest.coverAvgHits.toFixed(4)} vs 机选 ${honest.randomAvgHits.toFixed(4)} | ` +
-      `理论期望 ${honest.expectation.toFixed(4)} | 差 ${honest.diff.diff.toFixed(4)} p=${honest.diff.p.toFixed(3)} ` +
-      `${honest.diff.significant ? "★显著（需警惕）" : "无显著差异 ✔"}`
-  );
+
+  const configs = {
+    best: evaluateConfig(finalParams, "最优（最大铺开）"),
+    second: evaluateConfig(
+      { red: redFit.secondParams, blue: blueFit.secondParams },
+      `次优（铺开 s${redFit.secondSpread}）`
+    ),
+  };
+  const honest = configs.best.honest;
 
   // --- 5) 注数边界：1 注（铺不开）、8 注（双色球红区必然重叠） ---
   const edge = {};
@@ -433,18 +470,13 @@ function fitGame(key, tickets) {
     redFit,
     joint: { blueCurve: jointBlueCurve, redCurve: jointRedCurve },
     finalParams,
+    configs,
     analytic,
     selfCheck,
     selfOk,
-    coverTrain: summarize(coverTrain),
-    coverValid: summarize(coverValid),
-    coverFull: summarize(coverFull),
     randomValid: summarize(randomValid),
     randomFull: summarize(randomFull),
-    validRows,
-    fullRows,
     edge,
-    honest,
     defaults: {
       params: COVERAGE_PARAMS[key],
       full: summarize(defaults),
@@ -454,6 +486,9 @@ function fitGame(key, tickets) {
 }
 
 mkdirSync(OUT_DIR, { recursive: true });
+// 排列五不参与覆盖拟合：它只有一个奖级（5 位全中，1/100000），每位 0-9 独立均匀，
+// 「铺开」在数学上无法提高概率——唯一可做的是保证多注互不重复，收益约 N²/2/1e5 量级。
+// 排列五页面按「去重铺开 / 位置频率偏好 / 机选」三档如实展示，不在此处拟合。
 const games = ONLY_GAME ? [ONLY_GAME] : ["dlt", "ssq"];
 const report = {
   generatedAt: new Date().toISOString(),

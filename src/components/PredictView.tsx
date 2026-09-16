@@ -10,19 +10,15 @@ import { GAMES, type Draw, type GameKey } from "@/lib/games";
 import { singleTicketHitVariance } from "@/lib/prize";
 
 /**
- * 「实测最优」徽章的悬停依据。数字来自 `npm run fit`（全量 walk-forward + 配对检验，
- * 见 scripts/fit-coverage.mjs / .verify/fit-report.json），不是营销话术：
+ * 徽章悬停依据。数字来自 `npm run fit`（全量 walk-forward + 配对检验，5 注，
+ * 见 scripts/fit-coverage.mjs / .verify/fit-report.json）——不是营销话术：
  * 说的是「同价位多注的覆盖率」，不是「单注命中率」。
  */
-const COVER_BADGE_TITLE =
-  "实测依据（npm run fit，全量 walk-forward 配对检验）：同注数下「至少中得某奖级」大乐透 33.0% vs 机选 29.0%、双色球 32.1% vs 28.3%；「蓝区至少命中 1 个」大乐透 98.2% vs 84.9%、双色球 30.2% vs 26.3%（均 p<0.001）。单注平均命中与机选无显著差异——覆盖优化提高的是同价位至少中得一注的机会，不是单注命中率。";
+const BEST_BADGE_TITLE =
+  "实测依据（npm run fit，全量 walk-forward 配对检验，5 注）：「至少中得某奖级」大乐透 33.7% vs 机选 29.5%（+4.2pp, p=0.016）、双色球 30.9% vs 27.1%（+3.8pp, p<0.001）；「蓝区至少命中 1 个」大乐透 98.5% vs 85.7%、双色球 29.8% vs 25.5%。单注平均命中与机选无显著差异——提高的是同价位至少中得一注的机会，不是单注命中率。";
 
-const TAG_STYLE: Record<Pick["tag"], string> = {
-  热: "bg-red-500/20 text-red-300",
-  回补: "bg-blue-500/20 text-blue-300",
-  偏冷: "bg-amber-500/20 text-amber-300",
-  均衡: "bg-slate-600/40 text-slate-300",
-};
+const SECOND_BADGE_TITLE =
+  "在「覆盖率不显著下降」的前提下取最小铺开强度（拟合判据：与最优差距 ≤1SE）。实测 5 注验证段：大乐透「至少中奖」33.8% vs 机选 29.5%（+4.3pp, p=0.011）、双色球 30.0% vs 27.1%（+2.9pp, p=0.004）——两种方案都显著高于机选，差异在噪声量级内。真正的区别是号码铺得多开：次优的号码更集中（大乐透 5 注平均覆盖 24.4 个不同前区号，最优为 25.0）。";
 
 const COUNT_OPTIONS = [1, 3, 5, 8];
 
@@ -32,14 +28,8 @@ function PickBalls({ picks, zone }: { picks: Pick[]; zone: "red" | "blue" }) {
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {picks.map((p) => (
-        <span key={p.num} className="relative group">
+        <span key={p.num} title={`近 30 期出现 ${p.recent} 次 · 当前遗漏 ${p.omission} 期`}>
           <Ball n={p.num} zone={zone} size="md" />
-          <span
-            className={`absolute -top-1.5 -right-1.5 rounded-full px-1 text-[9px] leading-[14px] ${TAG_STYLE[p.tag]}`}
-            title={`近30期出现 ${p.recent} 次 · 当前遗漏 ${p.omission} 期`}
-          >
-            {p.tag}
-          </span>
         </span>
       ))}
     </div>
@@ -52,7 +42,7 @@ export default function PredictView({
   drawsOf: Record<GameKey, Draw[]>;
 }) {
   const [game, setGame] = useState<GameKey>("dlt");
-  const [strategy, setStrategy] = useState<StrategyId>("mix");
+  const [strategy, setStrategy] = useState<StrategyId>("best");
   const [count, setCount] = useState(5);
   // 初始种子固定（1），保证静态页 SSR 与客户端首帧一致、无水合警告；
   // 点击「换一批」才会随机换种。
@@ -74,11 +64,10 @@ export default function PredictView({
   /** 回测图上的噪声带：随机期望 ±1.96SE（SE = sqrt(单注命中方差 / 回测期数)） */
   const noiseBand = useMemo(() => {
     if (!comparison.length) return null;
-    const draws_ = Math.max(comparison[0].draws, 1);
-    const se = Math.sqrt(singleTicketHitVariance(cfg) / draws_);
+    const n = Math.max(comparison[0].draws, 1);
+    const se = Math.sqrt(singleTicketHitVariance(cfg) / n);
     const e = comparison[0].expectation;
     return {
-      se,
       lo: Math.round((e - 1.96 * se) * 1000) / 1000,
       hi: Math.round((e + 1.96 * se) * 1000) / 1000,
     };
@@ -93,12 +82,17 @@ export default function PredictView({
         backgroundColor: "rgba(15,23,42,0.95)",
         borderColor: "#334155",
         textStyle: { color: "#e2e8f0", fontSize: 12 },
+        // trigger: "axis" 时 formatter 收到的是参数数组，必须按数组处理
         formatter: (ps: { name: string; value: number }[]) => {
           const p = ps[0];
           return `${p.name}：平均每期命中 ${p.value.toFixed(3)} 个`;
         },
       },
-      xAxis: { type: "value", axisLabel: { color: "#94a3b8", fontSize: 10 }, splitLine: { lineStyle: { color: "#1e293b" } } },
+      xAxis: {
+        type: "value",
+        axisLabel: { color: "#94a3b8", fontSize: 10 },
+        splitLine: { lineStyle: { color: "#1e293b" } },
+      },
       yAxis: {
         type: "category",
         data: comparison.map((b) => nameOf(b.strategy)).reverse(),
@@ -111,8 +105,8 @@ export default function PredictView({
           data: comparison.map((b) => Math.round(b.avgHits * 1000) / 1000).reverse(),
           barWidth: 16,
           itemStyle: { color: "#f87171", borderRadius: [0, 4, 4, 0] },
-          // 噪声带：同一期望下，仅凭随机波动就可能出现的范围。各方案都落在带内，
-          // 说明它们的差异没有超出噪声——这正是「看起来更高」与「真的更高」的分界。
+          // 噪声带：同一期望下，仅凭随机波动就可能出现的范围。三个方案都落在带内，
+          // 说明它们的单注命中差异没有超出噪声——这正是「看起来更高」与「真的更高」的分界。
           markArea: noiseBand
             ? {
                 silent: true,
@@ -123,15 +117,13 @@ export default function PredictView({
                   position: "insideTop",
                   color: "#fbbf24",
                   fontSize: 10,
-                  formatter: `噪声带 ±1.96SE`,
+                  formatter: "噪声带 ±1.96SE",
                 },
               }
             : undefined,
           markLine: {
             symbol: "none",
-            data: comparison.length
-              ? [{ xAxis: Math.round(comparison[0].expectation * 1000) / 1000 }]
-              : [],
+            data: comparison.length ? [{ xAxis: Math.round(comparison[0].expectation * 1000) / 1000 }] : [],
             lineStyle: { color: "#fbbf24", type: "dashed" },
             label: {
               color: "#fbbf24",
@@ -161,8 +153,8 @@ export default function PredictView({
       <section className="pt-2 text-center">
         <h1 className="text-2xl font-bold text-white">多方案智能预测</h1>
         <p className="mx-auto mt-2 max-w-2xl text-sm text-slate-400">
-          六种统计思路各有一套推荐逻辑，同一份数据、不同方案，结果各有侧重，并附历史回测对比。
-          其中「覆盖优化」不预测号码，只优化同价位多注之间的号码分配。
+          三种方案：最优（覆盖优化·最大铺开）、次优（覆盖优化·温和铺开）、纯机选（对照）。
+          它们都不预测号码，区别只在「同价位多注之间如何分配号码」。
         </p>
       </section>
 
@@ -175,44 +167,61 @@ export default function PredictView({
       ) : (
         <>
           {/* 彩种切换 */}
-          <div className="flex justify-center gap-2">
-            {gameBtn("dlt", "超级大乐透")}
-            {gameBtn("ssq", "双色球")}
-          </div>
+          <div className="flex justify-center gap-2">{gameBtn("dlt", "超级大乐透")}{gameBtn("ssq", "双色球")}</div>
 
           {/* 方案选择 */}
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-2 sm:grid-cols-3">
             {STRATEGIES.map((s) => {
-              const isCover = s.id === "cover";
               const active = strategy === s.id;
+              const isBest = s.id === "best";
+              const isSecond = s.id === "second";
+              const accent = isBest ? "emerald" : isSecond ? "lime" : "slate";
               return (
                 <button
                   key={s.id}
                   onClick={() => setStrategy(s.id)}
                   className={`rounded-xl border p-3 text-left transition-colors ${
                     active
-                      ? isCover
+                      ? isBest
                         ? "border-emerald-400/70 bg-emerald-500/10"
-                        : "border-red-500/60 bg-red-500/10"
-                      : isCover
+                        : isSecond
+                          ? "border-lime-400/70 bg-lime-500/10"
+                          : "border-red-500/60 bg-red-500/10"
+                      : isBest
                         ? "border-emerald-500/40 bg-slate-900/60 hover:border-emerald-400/70"
-                        : "border-slate-800 bg-slate-900/60 hover:border-slate-600"
+                        : isSecond
+                          ? "border-lime-500/40 bg-slate-900/60 hover:border-lime-400/70"
+                          : "border-slate-800 bg-slate-900/60 hover:border-slate-600"
                   }`}
                 >
                   <div className="flex items-center gap-1.5">
                     <span
                       className={`text-sm font-semibold ${
-                        active ? (isCover ? "text-emerald-300" : "text-red-300") : "text-white"
+                        active
+                          ? isBest
+                            ? "text-emerald-300"
+                            : isSecond
+                              ? "text-lime-300"
+                              : "text-red-300"
+                          : "text-white"
                       }`}
                     >
                       {s.name}
                     </span>
-                    {isCover && (
+                    {isBest && (
                       <span
-                        title={COVER_BADGE_TITLE}
+                        title={BEST_BADGE_TITLE}
                         className="rounded-full bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-medium text-emerald-300"
                       >
                         实测最优
+                      </span>
+                    )}
+                    {isSecond && (
+                      <span
+                        title={SECOND_BADGE_TITLE}
+                        className="rounded-full bg-lime-500/20 px-1.5 py-0.5 text-[10px] font-medium text-lime-300"
+                      >
+                        号码更集中
                       </span>
                     )}
                   </div>
@@ -228,12 +237,20 @@ export default function PredictView({
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-base font-bold text-white">
                   {result.strategy.name}
-                  {result.strategy.id === "cover" && (
+                  {result.strategy.id === "best" && (
                     <span
-                      title={COVER_BADGE_TITLE}
+                      title={BEST_BADGE_TITLE}
                       className="ml-2 rounded-full bg-emerald-500/20 px-2 py-0.5 align-middle text-[10px] font-medium text-emerald-300"
                     >
                       实测最优
+                    </span>
+                  )}
+                  {result.strategy.id === "second" && (
+                    <span
+                      title={SECOND_BADGE_TITLE}
+                      className="ml-2 rounded-full bg-lime-500/20 px-2 py-0.5 align-middle text-[10px] font-medium text-lime-300"
+                    >
+                      号码更集中
                     </span>
                   )}
                   <span className="ml-2 text-xs font-normal text-slate-500">
@@ -281,14 +298,16 @@ export default function PredictView({
               </div>
 
               <p className="mt-3 text-[11px] text-slate-600">
-                号码角标：热＝近 30 期高频；回补＝遗漏明显超过自身节奏；偏冷＝遗漏偏高；均衡＝无显著特征。
-                悬停号码可查看具体频次与遗漏。
+                悬停号码可查看该号近 30 期出现次数与当前遗漏（纯历史统计，不参与选号）。
+                {result.strategy.id === "random"
+                  ? "本方案各注之间可能重复覆盖同一号码，这正是机选的浪费所在。"
+                  : "本方案的各注之间会尽量避开重复号码，因此同一批覆盖的号码更多。"}
               </p>
             </section>
           )}
 
-          {/* 覆盖优化专项：全量 walk-forward 的配对实测 */}
-          {result && strategy === "cover" && <CoveragePanel cfg={cfg} draws={draws} tickets={count} />}
+          {/* 覆盖率实测：三种方案并列 */}
+          {result && <CoveragePanel cfg={cfg} draws={draws} tickets={count} />}
 
           {/* 方案说明 + 分析 */}
           {result && (
@@ -315,7 +334,7 @@ export default function PredictView({
                     ))}
                   </li>
                   <li className="flex flex-wrap items-center gap-1.5">
-                    近 30 期热号：
+                    近 30 期热号（仅统计参考，不参与选号）：
                     {result.analysis.hotTop.map((h) => (
                       <span key={h.num} className="rounded bg-red-500/15 px-1.5 py-0.5 text-red-300 tabular-nums">
                         {String(h.num).padStart(2, "0")}·{h.count}次
@@ -323,7 +342,7 @@ export default function PredictView({
                     ))}
                   </li>
                   <li className="flex flex-wrap items-center gap-1.5">
-                    当前遗漏最深：
+                    当前遗漏最深（仅统计参考，不参与选号）：
                     {result.analysis.coldTop.map((h) => (
                       <span key={h.num} className="rounded bg-slate-700/50 px-1.5 py-0.5 text-slate-300 tabular-nums">
                         {String(h.num).padStart(2, "0")}·遗漏{h.omission}期
@@ -370,14 +389,10 @@ export default function PredictView({
                 </div>
                 <p className="mt-3 text-xs leading-relaxed text-slate-500">
                   回测中每期只用该期之前的历史数据选号，单注命中数＝该注号码与实际开奖的交集（红区+蓝区），
-                  再按注数平均。各方案的「平均每期命中」都与随机期望、与黄色噪声带处于同一水平——这正是随机事件的本质。
-                  {result.strategy.id === "cover" ? (
-                    <>
-                      「覆盖优化」的差异只在覆盖度口径上（上方对比图），它的单注命中同样与机选一致：
-                      这不是预测能力，而是把同样的注数铺到了更多不同号码上。
-                    </>
-                  ) : (
-                    <>请把推荐当娱乐，不要当依据。</>
+                  再按注数平均。三个方案的「平均每期命中」都落在黄色噪声带内、与随机期望同水平——
+                  这正是随机事件的本质：单注命中不因选号方式而改变。
+                  {result.strategy.id !== "random" && (
+                    <> 覆盖优化真正的差异在上方的覆盖率口径上，而不是这里。</>
                   )}
                 </p>
               </section>
@@ -388,15 +403,16 @@ export default function PredictView({
           {comparison.length > 0 && (
             <section className="card">
               <h3 className="mb-1 text-sm font-semibold text-white">
-                六方案回测对比（{cfg.name}）
+                三方案回测对比（{cfg.name}）
                 <span className="ml-2 text-xs font-normal text-slate-500">
                   最近 {comparison[0].draws} 期 · {comparison[0].tickets} 注 · 平均命中按注数平均
                 </span>
               </h3>
-              <EChart option={comparisonChart} height={220} />
+              <EChart option={comparisonChart} height={200} />
               <p className="mb-2 text-[11px] leading-relaxed text-slate-600">
-                黄色带＝随机期望 ±1.96 标准误（{noiseBand ? `${noiseBand.lo.toFixed(3)} ~ ${noiseBand.hi.toFixed(3)}` : ""}）：
-                只统计 {comparison[0].draws} 期时，仅凭随机波动就会出现这么大范围的高低差，落在带内说明差异不超出噪声。
+                黄色带＝随机期望 ±1.96 标准误（
+                {noiseBand ? `${noiseBand.lo.toFixed(3)} ~ ${noiseBand.hi.toFixed(3)}` : ""}）：只统计{" "}
+                {comparison[0].draws} 期时，仅凭随机波动就会出现这么大范围的高低差，落在带内说明差异不超出噪声。
                 「至少中奖」按官方奖级表判定，允许红蓝命中落在同一批的任意一注上。
               </p>
               <div className="overflow-x-auto">
@@ -416,30 +432,15 @@ export default function PredictView({
                     {comparison.map((b) => {
                       const def = STRATEGIES.find((s) => s.id === b.strategy)!;
                       const isCurrent = b.strategy === strategy;
-                      const isCover = b.strategy === "cover";
                       return (
                         <tr
                           key={b.strategy}
                           className={`border-t border-slate-800/60 ${
-                            isCurrent
-                              ? isCover
-                                ? "text-emerald-300"
-                                : "text-red-300"
-                              : isCover
-                                ? "text-emerald-200/90"
-                                : "text-slate-300"
+                            isCurrent ? "text-emerald-300" : "text-slate-300"
                           }`}
                         >
                           <td className="py-2 text-left">
                             {def.name}
-                            {isCover && (
-                              <span
-                                title={COVER_BADGE_TITLE}
-                                className="ml-1.5 rounded-full bg-emerald-500/20 px-1.5 py-0.5 text-[10px] text-emerald-300"
-                              >
-                                实测最优
-                              </span>
-                            )}
                             {isCurrent && <span className="ml-1.5 text-[10px]">←当前</span>}
                           </td>
                           <td className="py-2 font-semibold">{b.avgHits.toFixed(3)}</td>
@@ -472,6 +473,10 @@ export default function PredictView({
                   </tbody>
                 </table>
               </div>
+              <p className="mt-2 text-[11px] leading-relaxed text-slate-600">
+                注意「平均命中」一列：三个方案与机选同水平（都在噪声带内）；差异出现在「至少中奖」一列，
+                也就是同价位铺开更多不同号码带来的覆盖收益。
+              </p>
             </section>
           )}
         </>

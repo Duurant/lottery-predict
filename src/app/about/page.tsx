@@ -22,7 +22,8 @@ export default function AboutPage() {
             <li>历史查询：按期号或日期检索开奖公告</li>
             <li>号码生成器：均匀随机机选 + 形态条件过滤</li>
             <li>
-              多方案智能预测：热号追踪 / 冷号回补 / 冷热结合 / 遗漏回归 / 纯机选五种方案，附历史回测对比
+              多方案智能预测：最优（覆盖优化·最大铺开）/ 次优（覆盖优化·温和铺开）/ 纯机选三种方案，
+              附全量回测、覆盖率配对检验与置信区间
             </li>
           </ul>
         </div>
@@ -48,11 +49,13 @@ export default function AboutPage() {
         <h2 className="mb-3 text-lg font-bold text-white">「预测」是什么？</h2>
         <div className="flex flex-col gap-2 text-sm leading-relaxed text-slate-300">
           <p>
-            本站的「智能预测」是把常见选号思路（追热、搏冷、冷热结合、遗漏回归）做成可交互的统计玩具，
-            并用<strong className="text-white">历史回测</strong>展示每种方案的真实表现。
+            本站的「智能预测」只做一件事：<strong className="text-white">在同一批注之间分配号码</strong>。
+            它不猜号码、不预测开奖——「最优/次优方案」都是覆盖优化，即让同价位的多注尽量不重复覆盖，
+            把每一注的钱都用在不同的号码组合上；「纯机选」作为对照。
           </p>
           <p>
-            回测结论很直白：所有方案的平均命中都与随机选号的期望处于同一水平。
+            回测结论很直白：三种方案的<strong className="text-white">单注平均命中</strong>都与随机选号的期望
+            处于同一水平（页面用噪声带把这个范围画出来了）。
             因为每一期开奖都是<strong className="text-white">独立随机事件</strong>，
             历史号码不会影响未来结果——任何声称能提高中奖概率的算法（尤其是收费的）都是虚假宣传。
           </p>
