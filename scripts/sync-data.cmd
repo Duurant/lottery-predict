@@ -5,6 +5,11 @@ rem      so data is captured even while github is unreachable
 rem   2) pull --rebase + push, each retried direct then via the local proxy
 rem If pull/push keep failing the data stays committed locally and the next
 rem scheduled run publishes it.
+rem
+rem MUST stay pure ASCII with CRLF line endings: cmd.exe reads this file as
+rem ANSI/GBK, and a UTF-8 Chinese comment with LF endings swallows the next
+rem line and silently kills the whole script (the 2026-09-16..20 data gap
+rem was exactly this bug).
 rem Invoked by the Windows scheduled task "LotteryDataSync"
 rem (register with scripts/setup-sync-task.ps1). Log: %USERPROFILE%\lottery-sync.log
 setlocal enabledelayedexpansion
@@ -22,7 +27,7 @@ rem NOTE: npm is npm.cmd on Windows - WITHOUT "call" control transfers to it
 rem permanently and this script would end right here (never commit/push)
 call npm run fetch >>"%LOG%" 2>&1
 
-rem data/p5.json 必须在这里一并 add：漏掉它，排列五的新数据永远不会被提交上线
+rem data/p5.json MUST be added here too: miss it and new p5 draws never land
 git add data/dlt.json data/ssq.json data/p5.json
 git diff --cached --quiet
 if errorlevel 1 (
@@ -50,7 +55,7 @@ if !tries! lss 2 (
   ping -n 11 127.0.0.1 >nul
   goto gr_direct
 )
-rem FClash/Clash usually listens on 127.0.0.1:7890; use it only when present
+rem FlClash/Clash usually listens on 127.0.0.1:7890; use it only when present
 netstat -ano 2>nul | findstr /C:":7890 " | findstr LISTENING >nul 2>&1
 if errorlevel 1 (
   >>"%LOG%" echo git %* failed twice, no local proxy on 7890, giving up for this run

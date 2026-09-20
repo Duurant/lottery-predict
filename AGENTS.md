@@ -47,6 +47,7 @@ npx tsc --noEmit       # 类型检查（无 lint 脚本、无测试框架，二�
 - 客户端组件导入的 `src/lib/*` 模块**不能含 `node:fs` 等运行时内置模块导入**：打包器会把它们打进客户端 chunk 并直接构建失败（Turbopack: "the chunking context does not support external modules (request: node:fs)"）。现有拆分：`games.ts`↔`data.ts`、`digit.ts`↔`digit-data.ts`。类型导入用 `import type` 不受影响。
 - **大乐透 2007–2013 年前区号码分布显著偏高**（29–35 号出现次数约为期望的 1.3~1.55 倍，卡方 p<0.001；2014 年起恢复均匀，双色球全期均匀）。已与体彩官网接口逐条比对确认**官方历史记录本身如此**，不是本站抓取问题。因此：`npm run audit` 报出该偏离属已知情况，不要当 bug 去「修数据」；统计分析面板在选「全部历史」时会显示 `GAMES.dlt.historyNote` 提示，改这块文案前先重跑 `npm run audit` 复核数字。
 - 仓库路径含中文：`sync-data.cmd` 保持纯 ASCII 并用 `%~dp0..` 推根目录，`setup-sync-task.ps1` 里是硬编码路径——改动时注意非 ASCII 与 CRLF/编码问题。
+- **`sync-data.cmd` 必须同时满足「纯 ASCII + CRLF 换行」**（`.gitattributes` 已强制 `*.cmd/*.bat/*.ps1 eol=crlf`，用 Write 工具改写后需 `unix2dos` 转换再提交）：cmd 按 GBK 解析文件，**UTF-8 中文注释 + LF 换行**会让多字节序列吞掉换行符、把注释和下一行并成一行，整个脚本静默崩坏——症状是计划任务每天显示运行成功（exit 0）但日志零输出、数据断更（2026-09-16~09-20 断更 4 天即此因）。改完务必手动跑一次 `scripts\sync-data.cmd` 确认日志出现 `sync done`。
 
 ## 三档方案的诚实性约束（改选号逻辑前必读）
 
