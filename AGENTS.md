@@ -1,6 +1,6 @@
 # AGENTS.md
 
-彩票历史数据统计与娱乐工具站（超级大乐透 / 双色球）。Next.js App Router + React + TypeScript + Tailwind 4 + ECharts 6，纯静态输出，部署在 Vercel。
+彩票历史数据统计与娱乐工具站（超级大乐透 / 双色球 / 排列五）。Next.js App Router + React + TypeScript + Tailwind 4 + ECharts 6，纯静态输出，部署在 Vercel。
 
 ## 目录
 
@@ -12,12 +12,16 @@ scripts/audit-data.mjs    数据体检（npm run audit，只读：结构校验 +
 scripts/fit-coverage.mjs  覆盖优化参数拟合与验证（npm run fit → .verify/fit-report.json）
 scripts/check-freshness.mjs 数据新鲜度看门狗（CI 用，漏抓则 exit 1）
 scripts/sync-data.cmd     Windows 计划任务调用的「抓取→提交→pull/push」流程
-src/app/                  路由页面（/ /dlt /ssq /p5 /generator /p5/generator /predict /p5/predict /about）
-src/components/           交互组件（CoveragePanel 覆盖率面板；Digit* 为排列五数字型组件）
-src/lib/                  games.ts 彩种配置 / data.ts 数据读取 / stats.ts 统计基础 / generate.ts 生成器 /
-                          predict.ts 三档方案与回测 / coverage.ts 覆盖优化选号 / prize.ts 奖级表 / stat.ts 配对统计
+src/app/                  路由页面（/ /dlt /ssq /p5 /generator /p5/generator /predict /p5/predict /about，
+                          另有 not-found.tsx 站点风格 404）
+src/components/           交互组件（CoveragePanel 覆盖率面板、GameSwitch 彩种切换、CopyButton 复制、
+                          TrendChart/StatsPanel 组合型；Digit* 为排列五数字型组件）
+src/lib/                  games.ts 彩种配置 / data.ts 数据读取 / stats.ts 统计基础 / compact.ts 传输编码 /
+                          generate.ts 生成器 / predict.ts 三档方案与回测 / coverage.ts 覆盖优化选号 /
+                          prize.ts 奖级表 / stat.ts 配对统计
                           digit.ts 排列五类型配置奖级统计 / digit-data.ts 排列五数据读取（含 fs）/
                           digit-predict.ts 排列五三档方案
+src/types/                打包器深层导入所需的空模块声明（echarts 副作用模块无 .d.ts）
 ```
 
 页面（`src/app/**/page.tsx`）是服务端组件，**只在构建期**通过 `src/lib/data.ts` 的 `loadGame()` 读 `data/*.json`（模块级缓存）；所有交互与图表在 `src/components/` 的客户端组件里。没有任何 API route、运行时数据请求或数据库。**数据更新后必须提交并推送 `data/*.json` 才会触发 Vercel 重新部署**，否则线上仍是旧数据。
@@ -79,8 +83,10 @@ npx tsc --noEmit       # 类型检查（无 lint 脚本、无测试框架，二�
 
 - 用户可见文案与代码注释都用中文，`<html lang="zh-CN">`。
 - 导入一律用 `@/*` 别名（`@/lib/games`、`@/components/Ball`）。
-- 号码/走势的通用统计（频率、遗漏、奇偶比、大小比、连号、和值、`mulberry32` 种子随机）统一放 `src/lib/stats.ts`，新算法复用而不是另写一份。
-- ECharts 走按需注册：图表类型与组件必须在 `src/components/EChart.tsx` 的 `echarts.use([...])` 里注册，否则新图表**静默不渲染**。图表统一通过 `<EChart option={...} />` 使用，不自建 `echarts.init`。
+- 号码/走势的通用统计（频率、遗漏、奇偶比、大小比、连号、和值、`mulberry32` 种子随机）统一放 `src/lib/stats.ts`，新算法复用而不是另写一份。形态分布类同理已有现成实现：`bigSmallDist` / `spanDist` / `consecStats` / `sumHistogram` / `zoneParts` / `median`（统计面板新增维度直接调用，勿再内联重写）。
+- ECharts **动态按需注册**：`EChart.tsx` 在挂载后 `import()` 深层模块（`echarts/lib/chart/bar` 等，导入即自注册），新增图表类型必须把对应深层模块加进 `loadEcharts()` 的 import 列表，否则新图表**静默不渲染**；渲染器不自注册，需显式 `use(renderers.CanvasRenderer)`。**不要改回 `echarts/charts`、`echarts/components` 这类 barrel 导入**（实测会把未用到的 map/geo/boxplot 一并打进 chunk，约 +370KB），也不要改成顶层静态导入（会让默认是走势表的 `/dlt`、`/ssq`、`/p5` 首屏白付数百 KB）。图表统一通过 `<EChart option={...} ariaLabel="..." />` 使用，不自建 `echarts.init`；canvas 对屏幕阅读器不可达，新增图表请一并给 ariaLabel。
+- 页面 → 客户端的数据一律经 `src/lib/compact.ts` 编码（`encodeDraws`/`encodeDigits`，客户端对应 `decodeDraws`/`decodeDigits`）：直接把 `Draw[]` 当 props 会把每期键名与括号序列化进 RSC payload（排列五页面曾达 456KB，现为 174KB）。新增数据页面请沿用；解码放在客户端组件顶层 `useMemo`，子组件 props 保持不变。只有「构建期算好的聚合结果」（如 p5 生成器的按位频率 5×10 计数）才直接传小对象。
+- 预测页（`/predict`、`/p5/predict`）的初始参数（大乐透或 p5 + best + 5 注 + seed=1）由 `page.tsx` 在构建期预计算、作为 props 传入，水合时不再跑全量回测；改初始参数或页面默认值时，`page.tsx` 的预计算与组件里的 `isInitialParams` 判据必须同步，否则会退回水合即全量计算。
 - 样式用 Tailwind 4（`@tailwindcss/postcss`），自定义类 `.ball/.ball-red/.ball-blue/.card` 与暗色底在 `src/app/globals.css`，页面里优先复用。
 - 站点根域名取 `process.env.SITE_URL`，回退 `https://lottery-predict.com`（见 `sitemap.ts` / `robots.ts` 与 `.env.example`）。
 
@@ -90,7 +96,7 @@ npx tsc --noEmit       # 类型检查（无 lint 脚本、无测试框架，二�
 - `scripts/fit-coverage.mjs` 用 Node 的类型擦除**直接 import `src/lib/` 下的 `.ts` 文件**（拿到的是运行时的 `GAMES`、`mulberry32`、算法本体，不只是类型）。因此 **`games.ts`、`stats.ts`、`coverage.ts`、`prize.ts`、`stat.ts` 这五个文件必须保持「只有 `import type`（编译期擦除）、没有运行时 import」**：一旦其中某个文件新增运行时 import（如 `import { x } from "./y"`），Node ESM 无法解析这种无扩展名路径，`npm run fit` 会直接崩。页面侧（webpack）不受此限制，但为保持脚本可用，这五个文件请勿引入运行时依赖。
 - 覆盖优化选号在 `spread` 极大时，已被本批用过的号码抽样键会下溢为 0（这是「尽量不重号」的实现方式）；`pickCoverTicket` 额外加了一个 `r * 1e-9` 的极小项，只为在「全批号码都用完、只能重复」时打破 0 与 0 的并列——去掉它会让 8 注的最后几注退化成完全相同的低号码注（白费注数）。
 - ECharts `tooltip.trigger: "axis"` 时 formatter 收到的是**参数数组**，必须 `ps[0]` 再取值，否则显示 `undefined`（`StatsPanel` 曾因此出错，正确写法见 `PredictView.tsx` / `CoveragePanel.tsx`）。
-- 生成器在条件过紧时会无解，需走「行数 0 + 黄色提示」路径，不得死循环（`.harness-check/report.txt` 覆盖了 `sumMax=20` 边界）。
+- 生成器在条件过紧时会无解，需走「行数 0 + 黄色提示」路径，不得死循环（`.harness-check/report.txt` 覆盖了 `sumMax=20` 边界）。组合型生成器**进页即出一批**、按钮文案是「换一批」；`generateCombos` 用 `Math.random()`（非确定性），因此首屏生成必须放在挂载后的 effect 里，不能写进 `useState` 初始化或渲染期，否则水合不一致。无头回归脚本按文案定位按钮，改文案要同步 `.harness-check/browser.mjs`。
 - `.zcode/`、`.verify/`、`.harness-check/` 均在 gitignore 内，属本地工具产物。
 
 ## 合规红线（不要越界）
