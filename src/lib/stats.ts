@@ -176,10 +176,149 @@ export function mean(nums: number[]): number {
   return nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : 0;
 }
 
+/** 中位数（偶数个时取中间两个的平均） */
+export function median(nums: number[]): number {
+  if (!nums.length) return 0;
+  const s = [...nums].sort((a, b) => a - b);
+  const mid = s.length >> 1;
+  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+}
+
 export function stdDev(nums: number[]): number {
   if (nums.length < 2) return 0;
   const m = mean(nums);
   return Math.sqrt(nums.reduce((a, b) => a + (b - m) ** 2, 0) / (nums.length - 1));
+}
+
+/* ---------------- 形态分布（统计面板用，全部尊重传入的期数范围） ---------------- */
+
+export interface Dist { label: string; count: number }
+
+/**
+ * 大小比分布：大号（> max/2）个数 → 期数，按大号个数升序。
+ * 与奇偶比分布（在面板内联计算）成对，避免「奇偶有分布、大小没有」的不对称。
+ */
+export function bigSmallDist(draws: Draw[], max: number): Dist[] {
+  const pick = drawnCount(draws);
+  const map = new Map<number, number>();
+  for (const d of draws) {
+    const [big] = bigSmallRatio(d.red, max);
+    map.set(big, (map.get(big) ?? 0) + 1);
+  }
+  return [...map.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([big, count]) => ({ label: `${big}:${pick - big}`, count }));
+}
+
+// 每期红区号码个数（各期一致，取首期即可）
+function drawnCount(draws: Draw[]): number {
+  return draws.length ? draws[0].red.length : 0;
+}
+
+/** 号码分区（默认三等分，尾段收余数）：大乐透 1-12/13-24/25-35、双色球 1-11/12-22/23-33 */
+export interface ZonePart {
+  from: number;
+  to: number;
+  /** 该区号码在所选期数范围内出现的总次数 */
+  count: number;
+  /** 理论期望次数 = 期数 × 每期取号数 × 该区号码占比 */
+  expected: number;
+  /** 实际占比（用于与理论对照展示） */
+  rate: number;
+}
+
+export function zoneParts(draws: Draw[], max: number, parts: number): ZonePart[] {
+  const size = Math.ceil(max / parts);
+  const pick = drawnCount(draws);
+  const out: ZonePart[] = [];
+  for (let i = 0; i < parts; i++) {
+    const from = i * size + 1;
+    const to = Math.min((i + 1) * size, max);
+    if (from > max) break;
+    let count = 0;
+    for (const d of draws) for (const n of d.red) if (n >= from && n <= to) count++;
+    const span = to - from + 1;
+    out.push({
+      from,
+      to,
+      count,
+      expected: draws.length * pick * (span / max),
+      rate: count / Math.max(draws.length * pick, 1),
+    });
+  }
+  return out;
+}
+
+/** 和值直方图（按 binWidth 分箱；返回非空箱） */
+export function sumHistogram(draws: Draw[], binWidth = 10): { from: number; to: number; count: number }[] {
+  if (!draws.length) return [];
+  const sums = draws.map((d) => sumOf(d));
+  const lo = Math.min(...sums);
+  const hi = Math.max(...sums);
+  const start = Math.floor(lo / binWidth) * binWidth;
+  const bins: { from: number; to: number; count: number }[] = [];
+  for (let b = start; b <= hi; b += binWidth) {
+    bins.push({ from: b, to: b + binWidth - 1, count: 0 });
+  }
+  for (const s of sums) {
+    const idx = Math.min(Math.floor((s - start) / binWidth), bins.length - 1);
+    if (idx >= 0) bins[idx].count++;
+  }
+  return bins.filter((b) => b.count > 0);
+}
+
+/** 跨度分布（前区最大号 − 最小号 → 期数） */
+export function spanDist(draws: Draw[]): { span: number; count: number }[] {
+  const map = new Map<number, number>();
+  for (const d of draws) {
+    const s = spanOf(d.red);
+    map.set(s, (map.get(s) ?? 0) + 1);
+  }
+  return [...map.entries()].sort((a, b) => a[0] - b[0]).map(([span, count]) => ({ span, count }));
+}
+
+/** 一期红区里的连号组数（连续且相邻的号码为一组，长度 ≥2 才算） */
+export function consecutiveGroups(nums: number[]): number {
+  const s = [...nums].sort((a, b) => a - b);
+  let groups = 0;
+  let run = 1;
+  for (let i = 1; i < s.length; i++) {
+    if (s[i] === s[i - 1] + 1) run++;
+    else {
+      if (run >= 2) groups++;
+      run = 1;
+    }
+  }
+  if (run >= 2) groups++;
+  return groups;
+}
+
+export interface ConsecStats {
+  /** 含至少一组连号的期数占比 */
+  withConsecRate: number;
+  /** 连号组数分布（0 / 1 / 2 及以上） */
+  dist: Dist[];
+  /** 平均每期连号组数 */
+  meanGroups: number;
+}
+
+export function consecStats(draws: Draw[]): ConsecStats {
+  if (!draws.length) return { withConsecRate: 0, dist: [], meanGroups: 0 };
+  let withConsec = 0;
+  let total = 0;
+  const map = new Map<number, number>();
+  for (const d of draws) {
+    const g = consecutiveGroups(d.red);
+    total += g;
+    if (g > 0) withConsec++;
+    const key = Math.min(g, 2); // 2 表示「2 组及以上」
+    map.set(key, (map.get(key) ?? 0) + 1);
+  }
+  const dist: Dist[] = [0, 1, 2].map((k) => ({
+    label: k === 2 ? "2 组及以上" : `${k} 组`,
+    count: map.get(k) ?? 0,
+  }));
+  return { withConsecRate: withConsec / draws.length, dist, meanGroups: total / draws.length };
 }
 
 /** 可复现伪随机数生成器（mulberry32），用于回测与策略随机扰动 */
