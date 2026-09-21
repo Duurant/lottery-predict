@@ -39,33 +39,54 @@ export function numberInfos(
   pick: number
 ): NumberInfo[] {
   const total = draws.length;
+  // 单遍扫描：每期只看该期开出的号码（每期 pick 个），
+  // 而不是对每个号码把全部期数 includes 一遍（旧实现是 max × total × pick 次比较）
+  const count = new Array<number>(max + 1).fill(0);
+  const firstIdx = new Array<number>(max + 1).fill(-1);
+  const lastIdx = new Array<number>(max + 1).fill(-1);
+  const gapSum = new Float64Array(max + 1);
+  const gapMax = new Array<number>(max + 1).fill(0); // 两次开出之间的最大空窗
+
+  for (let i = 0; i < total; i++) {
+    // 用 Set 兜住「单期出现重复号码」的畸形数据：与旧实现 includes 的语义一致（一期只计一次）
+    const hit = new Set(zoneNums(draws[i], zone));
+    for (const n of hit) {
+      if (n < 1 || n > max) continue;
+      if (count[n] > 0) {
+        const gap = i - lastIdx[n]; // 相邻两次开出的间隔（期数差）
+        gapSum[n] += gap;
+        if (gap - 1 > gapMax[n]) gapMax[n] = gap - 1;
+      } else {
+        firstIdx[n] = i; // 首次出现前的空窗长度 = i
+      }
+      count[n]++;
+      lastIdx[n] = i;
+    }
+  }
+
   const out: NumberInfo[] = [];
   for (let n = 1; n <= max; n++) {
-    const hits: number[] = [];
-    for (let i = 0; i < total; i++) {
-      if (zoneNums(draws[i], zone).includes(n)) hits.push(i);
+    if (count[n] === 0) {
+      out.push({
+        num: n,
+        count: 0,
+        omission: total,
+        maxOmission: total,
+        avgGap: -1,
+        theoreticalGap: pick > 0 ? max / pick : max,
+        lastCode: null,
+      });
+      continue;
     }
-    let maxOmission = hits.length ? hits[0] : total; // 首次出现前的空窗
-    for (let k = 1; k < hits.length; k++) {
-      maxOmission = Math.max(maxOmission, hits[k] - hits[k - 1] - 1);
-    }
-    if (hits.length) maxOmission = Math.max(maxOmission, total - 1 - hits[hits.length - 1]);
-    else maxOmission = Math.max(maxOmission, total);
-
-    const gaps: number[] = [];
-    for (let k = 1; k < hits.length; k++) gaps.push(hits[k] - hits[k - 1]);
-    const avgGap = gaps.length
-      ? gaps.reduce((a, b) => a + b, 0) / gaps.length
-      : -1;
-
+    const trailing = total - 1 - lastIdx[n]; // 最后一次开出后的空窗
     out.push({
       num: n,
-      count: hits.length,
-      omission: hits.length ? total - 1 - hits[hits.length - 1] : total,
-      maxOmission,
-      avgGap,
+      count: count[n],
+      omission: trailing,
+      maxOmission: Math.max(gapMax[n], firstIdx[n], trailing),
+      avgGap: count[n] > 1 ? gapSum[n] / (count[n] - 1) : -1,
       theoreticalGap: pick > 0 ? max / pick : max,
-      lastCode: hits.length ? draws[hits[hits.length - 1]].code : null,
+      lastCode: draws[lastIdx[n]].code,
     });
   }
   return out;

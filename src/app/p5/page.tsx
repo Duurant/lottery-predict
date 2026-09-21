@@ -6,6 +6,7 @@ import Disclaimer from "@/components/Disclaimer";
 import GameSwitch from "@/components/GameSwitch";
 import { P5_CONFIG } from "@/lib/digit";
 import { loadDigitGame } from "@/lib/digit-data";
+import { encodeDigits } from "@/lib/compact";
 
 export const metadata: Metadata = {
   title: "排列五走势图与统计分析",
@@ -54,7 +55,7 @@ export default function P5Page() {
         )}
       </section>
 
-      <DigitGameView draws={data.draws} />
+      <DigitGameView compact={encodeDigits(data.draws, cfg.positions)} />
 
       <Disclaimer compact />
     </div>

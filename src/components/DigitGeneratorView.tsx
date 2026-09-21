@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import DigitBall from "@/components/DigitBall";
 import Disclaimer from "@/components/Disclaimer";
-import { P5_CONFIG, digitText, positionFreq, type DigitDraw } from "@/lib/digit";
+import { P5_CONFIG, digitText } from "@/lib/digit";
 import { hashSeed } from "@/lib/coverage";
 import { mulberry32 } from "@/lib/stats";
 
@@ -11,7 +11,7 @@ const COUNT_OPTIONS = [1, 5, 10];
 
 /** 生成 N 注：支持「均匀随机」与「按各位历史频率加权」两种风格；两者都保证互不重复 */
 function generate(
-  draws: DigitDraw[],
+  posFreq: number[][],
   count: number,
   weighted: boolean,
   seed: number
@@ -19,8 +19,7 @@ function generate(
   const cfg = P5_CONFIG;
   const rand = mulberry32(hashSeed("p5", "gen", seed));
   const weights = weighted
-    ? Array.from({ length: cfg.positions }, (_, p) => {
-        const c = positionFreq(draws, p, cfg.digitMax);
+    ? posFreq.map((c) => {
         const total = c.reduce((a, b) => a + b, 0) + c.length;
         return c.map((x) => (x + 1) / total);
       })
@@ -51,14 +50,15 @@ function generate(
   return out;
 }
 
-export default function DigitGeneratorView({ draws }: { draws: DigitDraw[] }) {
+/** posFreq：每位 0-9 的历史出现次数（构建期由服务端算好传入，索引 0..digitMax） */
+export default function DigitGeneratorView({ posFreq }: { posFreq: number[][] }) {
   const [count, setCount] = useState(5);
   const [weighted, setWeighted] = useState(false);
   const [seed, setSeed] = useState(1);
 
   const tickets = useMemo(
-    () => (draws.length ? generate(draws, count, weighted, seed) : []),
-    [draws, count, weighted, seed]
+    () => (posFreq.length ? generate(posFreq, count, weighted, seed) : []),
+    [posFreq, count, weighted, seed]
   );
 
   return (
@@ -73,8 +73,8 @@ export default function DigitGeneratorView({ draws }: { draws: DigitDraw[] }) {
 
       <Disclaimer />
 
-      {draws.length === 0 ? (
-        <p className="card text-center text-sm text-slate-500">暂无数据，请先运行 npm run fetch -- --only p5。</p>
+      {posFreq.length === 0 ? (
+        <p className="card text-center text-sm text-slate-500">数据暂时不可用，请稍后再来。</p>
       ) : (
         <>
           <section className="card">

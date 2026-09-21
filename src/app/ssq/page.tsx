@@ -5,6 +5,7 @@ import Disclaimer from "@/components/Disclaimer";
 import GameView from "@/components/GameView";
 import { loadGame } from "@/lib/data";
 import { GAMES } from "@/lib/games";
+import { encodeDraws } from "@/lib/compact";
 
 export const metadata: Metadata = {
   title: "双色球走势图与统计分析",
@@ -50,7 +51,7 @@ export default function SsqPage() {
         </div>
       </section>
 
-      <GameView cfg={cfg} draws={data.draws} />
+      <GameView cfg={cfg} compact={encodeDraws(data.draws, cfg.redCount, cfg.blueCount)} />
 
       <Disclaimer compact />
     </div>

@@ -3,11 +3,25 @@
 import { useMemo, useState } from "react";
 import DigitBall from "@/components/DigitBall";
 import Disclaimer from "@/components/Disclaimer";
-import { DIGIT_STRATEGIES, compareDigit, runDigitStrategy, type DigitStrategyId } from "@/lib/digit-predict";
+import {
+  DIGIT_STRATEGIES,
+  compareDigit,
+  runDigitStrategy,
+  type DigitCompareReport,
+  type DigitStrategyId,
+  type DigitStrategyResult,
+} from "@/lib/digit-predict";
 import { P5_CONFIG, digitText, singleDigitPrizeProb, type DigitDraw } from "@/lib/digit";
+import { decodeDigits, type CompactDigits } from "@/lib/compact";
 
 const COUNT_OPTIONS = [1, 5, 10];
 const fmtProb = (p: number) => `${(p * 100).toFixed(4)}%`;
+
+/** 初始参数（best / 5 注 / seed 1）在构建期的预计算结果，见 p5/predict/page.tsx */
+export interface DigitPredictInitial {
+  result: DigitStrategyResult;
+  report: DigitCompareReport;
+}
 
 /**
  * 排列五的「智能预测」。
@@ -18,18 +32,41 @@ const fmtProb = (p: number) => `${(p * 100).toFixed(4)}%`;
  *   1) 保证多注互不重复（唯一能真实省钱的地方）；
  *   2) 用解析概率 + 实测核对把「三者概率相同」摆出来，而不是让用户自己去猜。
  */
-export default function DigitPredictView({ draws }: { draws: DigitDraw[] }) {
+export default function DigitPredictView({
+  compact,
+  initial,
+}: {
+  compact: CompactDigits;
+  initial: DigitPredictInitial | null;
+}) {
   const cfg = P5_CONFIG;
   const [strategy, setStrategy] = useState<DigitStrategyId>("best");
   const [count, setCount] = useState(5);
   const [seed, setSeed] = useState(1);
 
+  // 解码一次（按位还原），子组件接口不变
+  const draws = useMemo<DigitDraw[]>(() => decodeDigits(compact), [compact]);
+
+  // 初始参数用构建期预计算结果；参数一变回落到客户端重算（同函数同口径）
   const result = useMemo(
-    () => (draws.length ? runDigitStrategy(cfg, draws, strategy, count, seed) : null),
-    [cfg, draws, strategy, count, seed]
+    () =>
+      strategy === "best" && count === 5 && seed === 1 && initial?.result
+        ? initial.result
+        : draws.length
+          ? runDigitStrategy(cfg, draws, strategy, count, seed)
+          : null,
+    [cfg, draws, strategy, count, seed, initial]
   );
 
-  const report = useMemo(() => (draws.length ? compareDigit(cfg, draws, count) : null), [cfg, draws, count]);
+  const report = useMemo(
+    () =>
+      count === 5 && initial?.report
+        ? initial.report
+        : draws.length
+          ? compareDigit(cfg, draws, count)
+          : null,
+    [cfg, draws, count, initial]
+  );
 
   const single = singleDigitPrizeProb(cfg);
 

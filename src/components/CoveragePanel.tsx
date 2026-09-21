@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import EChart, { type EOption } from "@/components/EChart";
 import type { Draw, GameConfig } from "@/lib/games";
-import { compareCoverage } from "@/lib/predict";
+import { compareCoverage, type CoverageReport } from "@/lib/predict";
 
 const pct = (x: number, digits = 2) => `${(x * 100).toFixed(digits)}%`;
 const pp = (x: number) => `${x >= 0 ? "+" : ""}${(x * 100).toFixed(2)}pp`;
@@ -28,12 +28,18 @@ export default function CoveragePanel({
   cfg,
   draws,
   tickets,
+  initialReport,
 }: {
   cfg: GameConfig;
   draws: Draw[];
   tickets: number;
+  /** 构建期预计算的全量报告（参数与当前一致时传入，免去水合时的全量 walk-forward） */
+  initialReport?: CoverageReport;
 }) {
-  const report = useMemo(() => compareCoverage(cfg, draws, tickets), [cfg, draws, tickets]);
+  const report = useMemo(
+    () => initialReport ?? compareCoverage(cfg, draws, tickets),
+    [cfg, draws, tickets, initialReport]
+  );
 
   const strategyNames = report.metrics[0]?.byStrategy.map((s) => s.name) ?? [];
 

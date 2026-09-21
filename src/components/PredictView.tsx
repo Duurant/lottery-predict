@@ -6,9 +6,26 @@ import Ball from "@/components/Ball";
 import CoveragePanel from "@/components/CoveragePanel";
 import Disclaimer from "@/components/Disclaimer";
 import EChart, { type EOption } from "@/components/EChart";
-import { backtestAll, runStrategy, STRATEGIES, type Pick, type StrategyId } from "@/lib/predict";
-import { GAMES, type Draw, type GameKey } from "@/lib/games";
+import {
+  backtestAll,
+  runStrategy,
+  STRATEGIES,
+  type BacktestResult,
+  type CoverageReport,
+  type Pick,
+  type StrategyId,
+  type StrategyResult,
+} from "@/lib/predict";
+import { GAMES, type GameKey } from "@/lib/games";
+import { decodeDraws, type CompactDraws } from "@/lib/compact";
 import { singleTicketHitVariance } from "@/lib/prize";
+
+/** 初始参数（大乐透 / best / 5 注 / seed 1）在构建期的预计算结果，见 predict/page.tsx */
+export interface PredictInitial {
+  result: StrategyResult;
+  comparison: BacktestResult[];
+  coverage: CoverageReport;
+}
 
 /**
  * 徽章悬停依据。数字来自 `npm run fit`（全量 walk-forward + 配对检验，5 注，
@@ -38,9 +55,11 @@ function PickBalls({ picks, zone }: { picks: Pick[]; zone: "red" | "blue" }) {
 }
 
 export default function PredictView({
-  drawsOf,
+  compactOf,
+  initial,
 }: {
-  drawsOf: Record<GameKey, Draw[]>;
+  compactOf: Record<GameKey, CompactDraws>;
+  initial: PredictInitial | null;
 }) {
   const [game, setGame] = useState<GameKey>("dlt");
   const [strategy, setStrategy] = useState<StrategyId>("best");
@@ -50,16 +69,33 @@ export default function PredictView({
   const [seed, setSeed] = useState(1);
 
   const cfg = GAMES[game];
-  const draws = drawsOf[game];
+  const draws = useMemo(
+    () => decodeDraws(compactOf[game]),
+    [compactOf, game]
+  );
+
+  // 初始参数（dlt / best / 5 注 / seed 1）直接用构建期预计算结果，水合零回测；
+  // 参数一变就回落到客户端重算（与预计算同函数同口径）
+  const isInitialParams = game === "dlt" && strategy === "best" && count === 5 && seed === 1;
 
   const result = useMemo(
-    () => (draws.length ? runStrategy(cfg, draws, strategy, count, seed) : null),
-    [cfg, draws, strategy, count, seed]
+    () =>
+      isInitialParams && initial?.result
+        ? initial.result
+        : draws.length
+          ? runStrategy(cfg, draws, strategy, count, seed)
+          : null,
+    [cfg, draws, strategy, count, seed, isInitialParams, initial]
   );
 
   const comparison = useMemo(
-    () => (draws.length ? backtestAll(cfg, draws, count) : []),
-    [cfg, draws, count]
+    () =>
+      isInitialParams && initial?.comparison
+        ? initial.comparison
+        : draws.length
+          ? backtestAll(cfg, draws, count)
+          : [],
+    [cfg, draws, count, isInitialParams, initial]
   );
 
   /** 回测图上的噪声带：随机期望 ±1.96SE（SE = sqrt(单注命中方差 / 回测期数)） */
@@ -317,7 +353,14 @@ export default function PredictView({
           )}
 
           {/* 覆盖率实测：三种方案并列 */}
-          {result && <CoveragePanel cfg={cfg} draws={draws} tickets={count} />}
+          {result && (
+            <CoveragePanel
+              cfg={cfg}
+              draws={draws}
+              tickets={count}
+              initialReport={game === "dlt" && count === 5 ? initial?.coverage : undefined}
+            />
+          )}
 
           {/* 方案说明 + 分析 */}
           {result && (

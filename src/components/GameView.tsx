@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import HistoryQuery from "@/components/HistoryQuery";
 import StatsPanel from "@/components/StatsPanel";
 import TrendChart from "@/components/TrendChart";
 import type { Draw, GameConfig } from "@/lib/games";
+import { decodeDraws, type CompactDraws } from "@/lib/compact";
 
 const TABS = ["走势图", "统计分析", "历史查询"] as const;
 type Tab = (typeof TABS)[number];
@@ -13,13 +14,16 @@ const RANGES = [30, 50, 100] as const;
 
 export default function GameView({
   cfg,
-  draws,
+  compact,
 }: {
   cfg: GameConfig;
-  draws: Draw[];
+  compact: CompactDraws;
 }) {
   const [tab, setTab] = useState<Tab>("走势图");
   const [range, setRange] = useState<number>(30);
+
+  // 解码一次，子组件拿到的仍是普通 Draw[]（接口不变）
+  const draws = useMemo(() => decodeDraws(compact), [compact]);
 
   const scoped =
     tab === "走势图" && range > 0 ? draws.slice(-range) : draws;

@@ -20,7 +20,7 @@ function comboText(c: GenCombo): string {
 export default function GeneratorView({
   historyKeysOf,
 }: {
-  historyKeysOf: Record<GameKey, string[]>;
+  historyKeysOf: Record<GameKey, string>;
 }) {
   const [game, setGame] = useState<GameKey>("dlt");
   const [count, setCount] = useState(5);
@@ -39,7 +39,7 @@ export default function GeneratorView({
 
   const cfg = GAMES[game];
   const historySet = useMemo(
-    () => new Set(historyKeysOf[game]),
+    () => new Set(historyKeysOf[game].split(" ").filter(Boolean)),
     [game, historyKeysOf]
   );
 

@@ -61,12 +61,20 @@ export const DIGIT_STRATEGIES: DigitStrategyDef[] = [
 /** 一期的一批号码（每注 5 位数字） */
 type DigitBatch = number[][];
 
-/** 某位的数字权重（按截止第 i 期的历史频率，加拉普拉斯平滑） */
+/** 由计数得某位的数字权重（拉普拉斯平滑） */
+function weightsFromCounts(counts: number[]): number[] {
+  const total = counts.reduce((a, b) => a + b, 0) + counts.length;
+  return counts.map((c) => (c + 1) / total);
+}
+
+/**
+ * 某位的数字权重（按截止第 i 期的历史频率，加拉普拉斯平滑）。
+ * 单次调用用；全量 walk-forward 里请用 walkDigit 的逐期递增计数（避免 O(n²) 重扫）。
+ */
 function positionWeights(draws: DigitDraw[], i: number, cfg: DigitGameConfig, position: number): number[] {
   const counts = new Array<number>(cfg.digitMax + 1).fill(0);
   for (let k = 0; k < i; k++) counts[draws[k].digits[position]]++;
-  const total = counts.reduce((a, b) => a + b, 0) + counts.length;
-  return counts.map((c) => (c + 1) / total);
+  return weightsFromCounts(counts);
 }
 
 /** 按权重取一个数字（前缀和 + 均匀随机） */
@@ -83,6 +91,9 @@ function weightedDigit(weights: number[], rand: () => number): number {
 /**
  * 生成一批号码。best/random 走均匀抽样，second 走位置频率加权；
  * best/second 强制去重（重复则重抽，超过上限后改为顺序补齐，保证一定返回 N 注）。
+ *
+ * weightsIn：调用方预先算好的按位权重（walkDigit 的递增计数路径）；
+ * 不传时（单次调用）内部按第 i 期现算。
  */
 function pickDigitBatch(
   cfg: DigitGameConfig,
@@ -90,13 +101,15 @@ function pickDigitBatch(
   i: number,
   id: DigitStrategyId,
   tickets: number,
-  rand: () => number
+  rand: () => number,
+  weightsIn?: number[][]
 ): DigitBatch {
   const dedupe = id !== "random";
   const weights =
-    id === "second"
+    weightsIn ??
+    (id === "second"
       ? Array.from({ length: cfg.positions }, (_, p) => positionWeights(draws, i, cfg, p))
-      : null;
+      : null);
 
   const out: DigitBatch = [];
   const seen = new Set<string>();
@@ -192,15 +205,31 @@ function walkDigit(
     matched: new Float64Array(n),
     bestMatched: 0,
   };
+  // second 方案需要「截止当期」的按位频率：逐期递增维护计数，
+  // 与原实现的逐期前缀重扫在整数计数上完全等价，但把 O(n²) 降到 O(n)
+  let counts: number[][] | null = null;
+  if (id === "second") {
+    counts = Array.from({ length: cfg.positions }, () => new Array<number>(cfg.digitMax + 1).fill(0));
+    for (let k = 0; k < from; k++) {
+      const d = draws[k].digits;
+      for (let p = 0; p < cfg.positions; p++) counts[p][d[p]]++;
+    }
+  }
   for (let k = 0; k < n; k++) {
     const i = from + k;
     const rand = mulberry32(hashSeed(cfg.key, "digit", id, draws[i].code));
-    const batch = pickDigitBatch(cfg, draws, i, id, tickets, rand);
+    const weights = counts ? counts.map(weightsFromCounts) : undefined;
+    const batch = pickDigitBatch(cfg, draws, i, id, tickets, rand, weights);
     const s = scoreBatch(cfg, batch, draws[i].digits);
     out.win[k] = s.win;
     out.distinct[k] = s.distinct;
     out.matched[k] = s.matchedPerTicket;
     if (s.bestMatched > out.bestMatched) out.bestMatched = s.bestMatched;
+    // 当期开奖后并入计数，供下一期使用
+    if (counts) {
+      const d = draws[i].digits;
+      for (let p = 0; p < cfg.positions; p++) counts[p][d[p]]++;
+    }
   }
   return out;
 }

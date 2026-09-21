@@ -10,9 +10,10 @@ export const metadata: Metadata = {
 };
 
 export default function GeneratorPage() {
-  const historyKeysOf: Record<GameKey, string[]> = {
-    dlt: loadGame("dlt").draws.map((d) => comboKey(d.red, d.blue)),
-    ssq: loadGame("ssq").draws.map((d) => comboKey(d.red, d.blue)),
+  // 历史组合键合并为单个空格分隔字符串传输（comboKey 不含空格，安全），客户端再 split
+  const historyKeysOf: Record<GameKey, string> = {
+    dlt: loadGame("dlt").draws.map((d) => comboKey(d.red, d.blue)).join(" "),
+    ssq: loadGame("ssq").draws.map((d) => comboKey(d.red, d.blue)).join(" "),
   };
   return <GeneratorView historyKeysOf={historyKeysOf} />;
 }
