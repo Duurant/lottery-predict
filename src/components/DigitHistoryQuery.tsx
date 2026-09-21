@@ -35,6 +35,7 @@ export default function DigitHistoryQuery({ draws, cfg }: { draws: DigitDraw[]; 
             setPage(0);
           }}
           placeholder="输入期号（如 26248）或日期（如 2026-09）搜索"
+          aria-label="按期号或日期搜索开奖记录"
           className="w-full max-w-xs rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-500 sm:w-64"
         />
         <span className="text-xs text-slate-500">

@@ -30,6 +30,7 @@ export default function DigitGameView({ compact }: { compact: CompactDigits }) {
             <button
               key={t}
               onClick={() => setTab(t)}
+              aria-pressed={tab === t}
               className={`rounded-lg px-4 py-1.5 text-sm transition-colors ${
                 tab === t ? "bg-slate-700 font-medium text-white" : "text-slate-400 hover:text-white"
               }`}
@@ -46,6 +47,7 @@ export default function DigitGameView({ compact }: { compact: CompactDigits }) {
               <button
                 key={r}
                 onClick={() => setRange(r)}
+                aria-pressed={range === r}
                 className={`rounded-lg px-2.5 py-1 text-xs transition-colors ${
                   range === r ? "bg-slate-700 text-white" : "bg-slate-900 text-slate-400 hover:text-white"
                 }`}

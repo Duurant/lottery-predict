@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import CopyButton from "@/components/CopyButton";
 import DigitBall from "@/components/DigitBall";
 import Disclaimer from "@/components/Disclaimer";
 import { P5_CONFIG, digitText } from "@/lib/digit";
@@ -85,6 +86,7 @@ export default function DigitGeneratorView({ posFreq }: { posFreq: number[][] })
                   <button
                     key={c}
                     onClick={() => setCount(c)}
+                    aria-pressed={count === c}
                     className={`rounded-lg px-3 py-1 text-xs transition-colors ${
                       count === c ? "bg-violet-600 text-white" : "bg-slate-800 text-slate-400 hover:text-white"
                     }`}
@@ -97,6 +99,7 @@ export default function DigitGeneratorView({ posFreq }: { posFreq: number[][] })
                 <span className="text-sm text-slate-400">选号风格</span>
                 <button
                   onClick={() => setWeighted(false)}
+                  aria-pressed={!weighted}
                   className={`rounded-lg px-3 py-1 text-xs transition-colors ${
                     !weighted ? "bg-violet-600 text-white" : "bg-slate-800 text-slate-400 hover:text-white"
                   }`}
@@ -105,6 +108,7 @@ export default function DigitGeneratorView({ posFreq }: { posFreq: number[][] })
                 </button>
                 <button
                   onClick={() => setWeighted(true)}
+                  aria-pressed={weighted}
                   className={`rounded-lg px-3 py-1 text-xs transition-colors ${
                     weighted ? "bg-violet-600 text-white" : "bg-slate-800 text-slate-400 hover:text-white"
                   }`}
@@ -132,6 +136,12 @@ export default function DigitGeneratorView({ posFreq }: { posFreq: number[][] })
                 {tickets.length} 注 · 互不重复
               </span>
             </h3>
+            <div className="mb-3 flex justify-end">
+              <CopyButton
+                label="复制全部"
+                text={tickets.map((t) => digitText(t)).join("\n")}
+              />
+            </div>
             <div className="flex flex-col gap-2">
               {tickets.map((t, i) => (
                 <div
@@ -144,10 +154,11 @@ export default function DigitGeneratorView({ posFreq }: { posFreq: number[][] })
                       <DigitBall key={p} n={n} size="md" title={`第 ${p + 1} 位`} />
                     ))}
                   </div>
-                  <span className="ml-auto text-xs tabular-nums text-slate-500">
+                  <span className="text-xs tabular-nums text-slate-500">
                     号码 <span className="text-violet-300">{digitText(t)}</span> · 和值{" "}
                     <span className="text-amber-300/90">{t.reduce((a, b) => a + b, 0)}</span>
                   </span>
+                  <CopyButton text={digitText(t)} className="ml-auto" />
                 </div>
               ))}
             </div>

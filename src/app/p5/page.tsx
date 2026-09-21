@@ -34,7 +34,7 @@ export default function P5Page() {
                 <span className="ml-2 tabular-nums">{latest.date}</span>
               </p>
             ) : (
-              <p className="mt-1 text-sm text-slate-500">暂无数据，请先运行 npm run fetch -- --only p5</p>
+              <p className="mt-1 text-sm text-slate-500">数据暂时不可用，请稍后再来。</p>
             )}
           </div>
           {latest && (
@@ -44,7 +44,7 @@ export default function P5Page() {
                   <DigitBall key={p} n={n} size="lg" title={`第 ${p + 1} 位`} />
                 ))}
               </div>
-              <CountdownTimer drawDays={cfg.drawDays} drawTime={cfg.drawTime} compact />
+              <CountdownTimer drawDays={cfg.drawDays} drawTime={cfg.drawTime} accent="text-violet-400" />
             </div>
           )}
         </div>

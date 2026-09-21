@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import type { DigitDraw, DigitGameConfig } from "@/lib/digit";
 
-const CELL = "h-5 w-5 text-[10px]";
+const CELL = "h-5 w-5 text-[11px]";
 
 /** 某位在某一期的遗漏值（自该数字上次在该位出现以来过了多少期） */
 function buildOmission(draws: DigitDraw[], position: number, digitMax: number): number[][] {
@@ -44,7 +44,7 @@ export default function DigitTrendChart({ draws, cfg }: { draws: DigitDraw[]; cf
             </span>
           </h3>
           <div className="overflow-x-auto">
-            <table className="border-separate border-spacing-y-0.5 text-center text-[10px] tabular-nums">
+            <table className="border-separate border-spacing-y-0.5 text-center text-[11px] tabular-nums">
               <thead>
                 <tr className="text-slate-500">
                   <th className="sticky left-0 z-10 bg-slate-900 px-2 text-left font-normal">期号</th>
@@ -68,7 +68,7 @@ export default function DigitTrendChart({ draws, cfg }: { draws: DigitDraw[]; cf
                           {hit ? (
                             <span className={`ball ball-digit ${CELL} inline-flex`}>{n}</span>
                           ) : (
-                            <span className="inline-flex h-5 w-5 items-center justify-center text-slate-600">
+                            <span className="inline-flex h-5 w-5 items-center justify-center text-slate-500">
                               {omission[i][n]}
                             </span>
                           )}

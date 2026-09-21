@@ -232,6 +232,7 @@ export default function StatsPanel({ draws, cfg }: { draws: Draw[]; cfg: GameCon
           <button
             key={w}
             onClick={() => setWin(w)}
+            aria-pressed={win === w}
             className={`rounded-lg px-3 py-1 text-xs transition-colors ${
               win === w ? "bg-red-600 text-white" : "bg-slate-800 text-slate-400 hover:text-white"
             }`}
@@ -305,14 +306,14 @@ export default function StatsPanel({ draws, cfg }: { draws: Draw[]; cfg: GameCon
             {cfg.redName}号码频率
             <span className="ml-2 text-xs font-normal text-slate-500">出现次数</span>
           </h3>
-          <EChart option={redFreqOption} height={260} />
+          <EChart option={redFreqOption} height={260} ariaLabel={`${cfg.redName}各号码的历史出现次数柱状图（含均值线）`} />
         </section>
         <section className="card">
           <h3 className="mb-2 text-sm font-semibold text-white">
             {cfg.blueName}号码频率
             <span className="ml-2 text-xs font-normal text-slate-500">出现次数</span>
           </h3>
-          <EChart option={blueFreqOption} height={260} />
+          <EChart option={blueFreqOption} height={260} ariaLabel={`${cfg.blueName}各号码的历史出现次数柱状图（含均值线）`} />
         </section>
       </div>
 
@@ -323,7 +324,7 @@ export default function StatsPanel({ draws, cfg }: { draws: Draw[]; cfg: GameCon
             当前遗漏排行（{cfg.redName}）
             <span className="ml-2 text-xs font-normal text-slate-500">距最近一次开出</span>
           </h3>
-          <EChart option={omissionOption} height={260} />
+          <EChart option={omissionOption} height={260} ariaLabel="当前遗漏最深的号码条形图" />
         </section>
         <section className="card">
           <h3 className="mb-2 text-sm font-semibold text-white">
@@ -332,7 +333,7 @@ export default function StatsPanel({ draws, cfg }: { draws: Draw[]; cfg: GameCon
               {win === 0 ? "全部" : `近${win}期`}
             </span>
           </h3>
-          <EChart option={oddEvenOption} height={260} />
+          <EChart option={oddEvenOption} height={260} ariaLabel="奇偶比形态分布柱状图" />
         </section>
       </div>
 
@@ -342,7 +343,7 @@ export default function StatsPanel({ draws, cfg }: { draws: Draw[]; cfg: GameCon
           和值走势（{cfg.redName}）
           <span className="ml-2 text-xs font-normal text-slate-500">近 100 期，可缩放</span>
         </h3>
-        <EChart option={sumOption} height={280} />
+        <EChart option={sumOption} height={280} ariaLabel="和值走势折线图（含均值线）" />
       </section>
     </div>
   );

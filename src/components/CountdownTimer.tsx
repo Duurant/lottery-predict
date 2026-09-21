@@ -40,69 +40,40 @@ function fmt(ms: number): { d: number; h: string; m: string; s: string } {
   };
 }
 
-const CELL =
-  "flex h-11 w-11 flex-col items-center justify-center rounded-lg bg-slate-800/80 tabular-nums";
-const NUM = "text-lg font-bold leading-none text-white";
-const LABEL = "mt-0.5 text-[10px] text-slate-500";
-
 export default function CountdownTimer({
   drawDays,
   drawTime,
-  compact = false,
+  accent = "text-red-400",
 }: {
   drawDays: number[];
   drawTime: string;
-  compact?: boolean;
+  /** 倒计时数字的颜色类（各彩种主题色） */
+  accent?: string;
 }) {
   const [target, setTarget] = useState<number | null>(null);
-  const [now, setNow] = useState<number>(() => Date.now());
+  const [now, setNow] = useState<number>(0);
 
   useEffect(() => {
-    setTarget(nextDrawAt(drawDays, drawTime));
-    const timer = setInterval(() => setNow(Date.now()), 1000);
+    // 自愈：页面长时间开着时，跨过开奖时刻后自动切到下一期目标，
+    // 而不是一直停在 00:00:00
+    const sync = () => {
+      setNow(Date.now());
+      setTarget((prev) => (prev != null && prev > Date.now() ? prev : nextDrawAt(drawDays, drawTime)));
+    };
+    sync();
+    const timer = setInterval(sync, 1000);
     return () => clearInterval(timer);
   }, [drawDays, drawTime]);
 
-  if (target == null) return null;
-  const t = fmt(target - now);
-
-  if (compact) {
-    return (
-      <span className="text-sm text-slate-400">
-        距下期开奖{" "}
-        <span className="font-semibold tabular-nums text-red-400">
-          {t.d > 0 ? `${t.d}天` : ""}
-          {t.h}:{t.m}:{t.s}
-        </span>
-      </span>
-    );
-  }
+  // 首帧占位（服务端与客户端首帧一致，避免水合跳变）
+  const t = target == null ? null : fmt(Math.max(target - now, 0));
 
   return (
-    <div className="flex items-center gap-1.5">
-      {t.d > 0 && (
-        <>
-          <div className={CELL}>
-            <span className={NUM}>{t.d}</span>
-            <span className={LABEL}>天</span>
-          </div>
-          <span className="text-slate-600">:</span>
-        </>
-      )}
-      <div className={CELL}>
-        <span className={NUM}>{t.h}</span>
-        <span className={LABEL}>时</span>
-      </div>
-      <span className="text-slate-600">:</span>
-      <div className={CELL}>
-        <span className={NUM}>{t.m}</span>
-        <span className={LABEL}>分</span>
-      </div>
-      <span className="text-slate-600">:</span>
-      <div className={CELL}>
-        <span className={NUM}>{t.s}</span>
-        <span className={LABEL}>秒</span>
-      </div>
-    </div>
+    <span className="text-sm text-slate-400">
+      距下期开奖{" "}
+      <span className={`font-semibold tabular-nums ${accent}`}>
+        {t ? `${t.d > 0 ? `${t.d}天` : ""}${t.h}:${t.m}:${t.s}` : "--:--:--"}
+      </span>
+    </span>
   );
 }

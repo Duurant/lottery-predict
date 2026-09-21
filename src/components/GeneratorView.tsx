@@ -1,9 +1,10 @@
 "use client";
 
-import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Ball from "@/components/Ball";
+import CopyButton from "@/components/CopyButton";
 import Disclaimer from "@/components/Disclaimer";
+import GameSwitch, { type ComboKey } from "@/components/GameSwitch";
 import { generateCombos, type GenCombo, type GenOptions } from "@/lib/generate";
 import { GAMES, type GameKey } from "@/lib/games";
 
@@ -35,7 +36,6 @@ export default function GeneratorView({
   });
   const [combos, setCombos] = useState<GenCombo[]>([]);
   const [relaxed, setRelaxed] = useState(false);
-  const [copied, setCopied] = useState<string | null>(null);
 
   const cfg = GAMES[game];
   const historySet = useMemo(
@@ -47,20 +47,34 @@ export default function GeneratorView({
     setOpts((o) => ({ ...o, ...patch }));
   }
 
-  function generate() {
-    const res = generateCombos(cfg, { ...opts, count }, historySet);
+  /** 用当前条件生成一批（进页面、切彩种、点「换一批」都会调用） */
+  function regenerate(g: GameKey, o: GenOptions, c: number) {
+    const res = generateCombos(GAMES[g], { ...o, count: c }, new Set(historyKeysOf[g].split(" ").filter(Boolean)));
     setCombos(res.combos);
     setRelaxed(res.relaxed);
   }
 
-  async function copy(text: string, key: string) {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(key);
-      setTimeout(() => setCopied(null), 1500);
-    } catch {
-      /* 剪贴板不可用时静默失败 */
-    }
+  // 首屏直达结果：进页面即生成一批，不再要求先点按钮（与排列五生成器、预测页一致）
+  useEffect(() => {
+    // ?g= 深链：从排列五页面切回来时可直接打开对应彩种（挂载后读取，避免水合不一致）
+    const q = new URLSearchParams(window.location.search).get("g");
+    const g: GameKey = q === "ssq" || q === "dlt" ? q : "dlt";
+    setGame(g);
+    const res = generateCombos(
+      GAMES[g],
+      { ...opts, count },
+      new Set(historyKeysOf[g].split(" ").filter(Boolean))
+    );
+    setCombos(res.combos);
+    setRelaxed(res.relaxed);
+    // 仅挂载时执行一次：后续条件变化由用户点「换一批」触发
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function switchGame(g: ComboKey) {
+    if (g === game) return;
+    setGame(g);
+    regenerate(g, opts, count);
   }
 
   const label = "mb-1 block text-xs text-slate-400";
@@ -78,37 +92,15 @@ export default function GeneratorView({
 
       <Disclaimer />
 
-      <div className="flex flex-wrap justify-center gap-2">
-        <Link
-          href="/p5/generator"
-          className="rounded-xl bg-slate-900 px-5 py-2 text-sm font-medium text-slate-400 transition-colors hover:text-white"
-        >
-          排列五
-        </Link>
-        {(["dlt", "ssq"] as GameKey[]).map((g) => (
-          <button
-            key={g}
-            onClick={() => {
-              setGame(g);
-              setCombos([]);
-            }}
-            className={`rounded-xl px-5 py-2 text-sm font-medium transition-colors ${
-              game === g
-                ? "bg-red-600 text-white shadow"
-                : "bg-slate-900 text-slate-400 hover:text-white"
-            }`}
-          >
-            {GAMES[g].name}
-          </button>
-        ))}
-      </div>
+      <GameSwitch section="generator" active={game} onSelect={switchGame} />
 
       {/* 条件面板 */}
       <section className="card">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <label className={label}>注数</label>
+            <label className={label} htmlFor="gen-count">注数</label>
             <select
+              id="gen-count"
               value={count}
               onChange={(e) => setCount(Number(e.target.value))}
               className={input}
@@ -121,8 +113,9 @@ export default function GeneratorView({
             </select>
           </div>
           <div>
-            <label className={label}>奇偶比（{cfg.redName}）</label>
+            <label className={label} htmlFor="gen-oe">奇偶比（{cfg.redName}）</label>
             <select
+              id="gen-oe"
               value={opts.oddEven}
               onChange={(e) => update({ oddEven: e.target.value as GenOptions["oddEven"] })}
               className={input}
@@ -134,8 +127,9 @@ export default function GeneratorView({
             </select>
           </div>
           <div>
-            <label className={label}>大小比（{cfg.redName}）</label>
+            <label className={label} htmlFor="gen-bs">大小比（{cfg.redName}）</label>
             <select
+              id="gen-bs"
               value={opts.bigSmall}
               onChange={(e) => update({ bigSmall: e.target.value as GenOptions["bigSmall"] })}
               className={input}
@@ -147,8 +141,9 @@ export default function GeneratorView({
             </select>
           </div>
           <div>
-            <label className={label}>连号限制</label>
+            <label className={label} htmlFor="gen-consec">连号限制</label>
             <select
+              id="gen-consec"
               value={opts.maxConsec}
               onChange={(e) => update({ maxConsec: Number(e.target.value) })}
               className={input}
@@ -159,8 +154,9 @@ export default function GeneratorView({
             </select>
           </div>
           <div>
-            <label className={label}>和值下限（{cfg.redName}）</label>
+            <label className={label} htmlFor="gen-summin">和值下限（{cfg.redName}）</label>
             <input
+              id="gen-summin"
               type="number"
               value={opts.sumMin === 0 ? "" : opts.sumMin}
               placeholder="不限"
@@ -169,8 +165,9 @@ export default function GeneratorView({
             />
           </div>
           <div>
-            <label className={label}>和值上限（{cfg.redName}）</label>
+            <label className={label} htmlFor="gen-summax">和值上限（{cfg.redName}）</label>
             <input
+              id="gen-summax"
               type="number"
               value={opts.sumMax === 999 ? "" : opts.sumMax}
               placeholder="不限"
@@ -191,10 +188,10 @@ export default function GeneratorView({
           </div>
           <div className="flex items-end">
             <button
-              onClick={generate}
+              onClick={() => regenerate(game, opts, count)}
               className="w-full rounded-lg bg-red-600 py-2 text-sm font-semibold text-white shadow transition-colors hover:bg-red-500"
             >
-              🎲 生成号码
+              🎲 换一批
             </button>
           </div>
         </div>
@@ -209,17 +206,12 @@ export default function GeneratorView({
                 <h2 className="text-base font-bold text-white">
                   生成结果（{cfg.name} {combos.length} 注）
                 </h2>
-                <button
-                  onClick={() => copy(combos.map(comboText).join("\n"), "__all__")}
-                  className="rounded-lg bg-slate-800 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-700"
-                >
-                  {copied === "__all__" ? "已复制 ✔" : "复制全部"}
-                </button>
+                <CopyButton text={combos.map(comboText).join("\n")} label="复制全部" />
               </div>
               <div className="flex flex-col gap-3">
                 {combos.map((c, i) => (
                   <div
-                    key={i}
+                    key={`${c.red.join("-")}|${c.blue.join("-")}`}
                     className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-slate-800/70 bg-slate-900/40 px-4 py-3"
                   >
                     <span className="w-10 text-xs text-slate-500">第 {i + 1} 注</span>
@@ -227,7 +219,7 @@ export default function GeneratorView({
                       {c.red.map((n) => (
                         <Ball key={`r${n}`} n={n} zone="red" />
                       ))}
-                      <span className="mx-1 text-slate-600">+</span>
+                      <span className="mx-1 text-slate-400">+</span>
                       {c.blue.map((n) => (
                         <Ball key={`b${n}`} n={n} zone="blue" />
                       ))}
@@ -236,12 +228,7 @@ export default function GeneratorView({
                       和值 <span className="text-amber-300/90">{c.sum}</span> · 奇偶 {c.oddEven} · 大小{" "}
                       {c.bigSmall}
                     </span>
-                    <button
-                      onClick={() => copy(comboText(c), String(i))}
-                      className="ml-auto rounded-lg bg-slate-800 px-2.5 py-1 text-xs text-slate-300 hover:bg-slate-700"
-                    >
-                      {copied === String(i) ? "已复制 ✔" : "复制"}
-                    </button>
+                    <CopyButton text={comboText(c)} className="ml-auto" />
                   </div>
                 ))}
               </div>
@@ -255,7 +242,7 @@ export default function GeneratorView({
               请适当放宽和值、奇偶、大小或连号限制后重试。
             </p>
           )}
-          <p className="mt-3 text-[11px] text-slate-600">
+          <p className="mt-3 text-[11px] text-slate-400">
             生成结果为均匀随机抽样，与任何开奖结果均无关联，仅供娱乐。
           </p>
         </section>

@@ -1,16 +1,18 @@
 "use client";
 
-import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Ball from "@/components/Ball";
+import CopyButton from "@/components/CopyButton";
 import CoveragePanel from "@/components/CoveragePanel";
 import Disclaimer from "@/components/Disclaimer";
 import EChart, { type EOption } from "@/components/EChart";
+import GameSwitch, { type ComboKey } from "@/components/GameSwitch";
 import {
   backtestAll,
   runStrategy,
   STRATEGIES,
   type BacktestResult,
+  type Combo,
   type CoverageReport,
   type Pick,
   type StrategyId,
@@ -41,6 +43,12 @@ const SECOND_BADGE_TITLE =
 const COUNT_OPTIONS = [1, 3, 5, 8];
 
 const fmtPct = (x: number) => `${(x * 100).toFixed(1)}%`;
+
+/** 纯文本号码串（复制用）：红区补零空格分隔 + 蓝区 */
+function comboText(c: Combo): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return c.red.map((p) => pad(p.num)).join(" ") + " + " + c.blue.map((p) => pad(p.num)).join(" ");
+}
 
 function PickBalls({ picks, zone }: { picks: Pick[]; zone: "red" | "blue" }) {
   return (
@@ -73,6 +81,12 @@ export default function PredictView({
     () => decodeDraws(compactOf[game]),
     [compactOf, game]
   );
+
+  // ?g= 深链：从排列五页面切回时直接打开对应彩种（挂载后读取，避免水合不一致）
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("g");
+    if (q === "ssq" || q === "dlt") setGame(q);
+  }, []);
 
   // 初始参数（dlt / best / 5 注 / seed 1）直接用构建期预计算结果，水合零回测；
   // 参数一变就回落到客户端重算（与预计算同函数同口径）
@@ -173,17 +187,9 @@ export default function PredictView({
     };
   }, [comparison, noiseBand]);
 
-  const gameBtn = (g: GameKey, label: string) => (
-    <button
-      key={g}
-      onClick={() => setGame(g)}
-      className={`rounded-xl px-5 py-2 text-sm font-medium transition-colors ${
-        game === g ? "bg-red-600 text-white shadow" : "bg-slate-900 text-slate-400 hover:text-white"
-      }`}
-    >
-      {label}
-    </button>
-  );
+  const switchGame = (g: ComboKey) => {
+    if (g !== game) setGame(g);
+  };
 
   return (
     <div className="flex flex-col gap-5">
@@ -199,21 +205,11 @@ export default function PredictView({
 
       {draws.length === 0 ? (
         <p className="card text-center text-sm text-slate-500">
-          暂无数据，请先运行 npm run fetch 抓取开奖数据。
+          数据暂时不可用，请稍后再来。
         </p>
       ) : (
         <>
-          {/* 彩种切换 */}
-          <div className="flex flex-wrap justify-center gap-2">
-            <Link
-              href="/p5/predict"
-              className="rounded-xl bg-slate-900 px-5 py-2 text-sm font-medium text-slate-400 transition-colors hover:text-white"
-            >
-              排列五
-            </Link>
-            {gameBtn("dlt", "超级大乐透")}
-            {gameBtn("ssq", "双色球")}
-          </div>
+          <GameSwitch section="predict" active={game} onSelect={switchGame} />
 
           {/* 方案选择 */}
           <div className="grid gap-2 sm:grid-cols-3">
@@ -226,6 +222,7 @@ export default function PredictView({
                 <button
                   key={s.id}
                   onClick={() => setStrategy(s.id)}
+                  aria-pressed={active}
                   className={`rounded-xl border p-3 text-left transition-colors ${
                     active
                       ? isBest
@@ -308,6 +305,7 @@ export default function PredictView({
                   <select
                     value={count}
                     onChange={(e) => setCount(Number(e.target.value))}
+                    aria-label="注数"
                     className="rounded-lg border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-slate-200"
                   >
                     {COUNT_OPTIONS.map((c) => (
@@ -322,28 +320,34 @@ export default function PredictView({
                   >
                     ⟳ 换一批
                   </button>
+                  <CopyButton
+                    label="复制全部"
+                    className="bg-slate-800 px-3 py-1.5 text-sm"
+                    text={result.combos.map(comboText).join("\n")}
+                  />
                 </div>
               </div>
 
               <div className="flex flex-col gap-3">
                 {result.combos.map((c, i) => (
                   <div
-                    key={i}
+                    key={`${c.red.map((p) => p.num).join("-")}|${c.blue.map((p) => p.num).join("-")}`}
                     className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-slate-800/70 bg-slate-900/40 px-4 py-3"
                   >
                     <span className="w-10 text-xs text-slate-500">第 {i + 1} 注</span>
                     <PickBalls picks={c.red} zone="red" />
-                    <span className="text-slate-600">+</span>
+                    <span className="text-slate-400">+</span>
                     <PickBalls picks={c.blue} zone="blue" />
-                    <span className="ml-auto text-xs tabular-nums text-slate-500">
+                    <span className="text-xs tabular-nums text-slate-500">
                       和值 <span className="text-amber-300/90">{c.sum}</span> · 奇偶 {c.oddEven} · 大小{" "}
                       {c.bigSmall}
                     </span>
+                    <CopyButton text={comboText(c)} className="ml-auto" />
                   </div>
                 ))}
               </div>
 
-              <p className="mt-3 text-[11px] text-slate-600">
+              <p className="mt-3 text-[11px] text-slate-400">
                 悬停号码可查看该号近 30 期出现次数与当前遗漏（纯历史统计，不参与选号）。
                 {result.strategy.id === "random"
                   ? "本方案各注之间可能重复覆盖同一号码，这正是机选的浪费所在。"
@@ -461,8 +465,8 @@ export default function PredictView({
                   最近 {comparison[0].draws} 期 · {comparison[0].tickets} 注 · 平均命中按注数平均
                 </span>
               </h3>
-              <EChart option={comparisonChart} height={200} />
-              <p className="mb-2 text-[11px] leading-relaxed text-slate-600">
+              <EChart option={comparisonChart} height={200} ariaLabel="三种方案的单注平均命中对比条形图，附随机期望与噪声带" />
+              <p className="mb-2 text-[11px] leading-relaxed text-slate-400">
                 黄色带＝随机期望 ±1.96 标准误（
                 {noiseBand ? `${noiseBand.lo.toFixed(3)} ~ ${noiseBand.hi.toFixed(3)}` : ""}）：只统计{" "}
                 {comparison[0].draws} 期时，仅凭随机波动就会出现这么大范围的高低差，落在带内说明差异不超出噪声。
@@ -526,7 +530,7 @@ export default function PredictView({
                   </tbody>
                 </table>
               </div>
-              <p className="mt-2 text-[11px] leading-relaxed text-slate-600">
+              <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
                 注意「平均命中」一列：三个方案与机选同水平（都在噪声带内）；差异出现在「至少中奖」一列，
                 也就是同价位铺开更多不同号码带来的覆盖收益。
               </p>

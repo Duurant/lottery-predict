@@ -92,12 +92,14 @@ function TrendGrid({
           ))}
         </svg>
 
-        {/* 表头 */}
+        {/* 表头（期号列固定在左侧，横向滚动时保留上下文） */}
         <div
           className="absolute left-0 top-0 grid items-center"
           style={{ gridTemplateColumns: gridCols, height: HEAD_H, width: gridW }}
         >
-          <div className="text-center text-[11px] text-slate-500">期号</div>
+          <div className="sticky left-0 z-20 flex h-full items-center justify-center bg-slate-900/95 text-center text-[11px] text-slate-500 backdrop-blur-sm">
+            期号
+          </div>
           {Array.from({ length: max }, (_, i) => (
             <div
               key={`h${i}`}
@@ -165,7 +167,7 @@ function RowCells({
 }) {
   return (
     <>
-      <div className="flex items-center justify-center text-[11px] tabular-nums text-slate-400">
+      <div className="sticky left-0 z-10 flex h-full items-center justify-center bg-slate-900/95 text-[11px] tabular-nums text-slate-400 backdrop-blur-sm">
         {row.code}
       </div>
       {Array.from({ length: max }, (_, i) => {
@@ -184,7 +186,7 @@ function RowCells({
             ) : (
               <span
                 className={`text-[11px] tabular-nums ${
-                  m >= 15 ? "text-slate-300" : m % 5 === 0 ? "text-slate-500" : "text-slate-600"
+                  m >= 15 ? "text-slate-300" : "text-slate-500"
                 }`}
                 title={`${pad2(n)} 已遗漏 ${m} 期`}
               >

@@ -119,6 +119,7 @@ export default function DigitStatsPanel({ draws, cfg }: { draws: DigitDraw[]; cf
             <button
               key={w}
               onClick={() => setWin(w)}
+              aria-pressed={win === w}
               className={`rounded-lg px-3 py-1 text-xs transition-colors ${
                 win === w ? "bg-violet-600 text-white" : "bg-slate-800 text-slate-400 hover:text-white"
               }`}
@@ -133,6 +134,7 @@ export default function DigitStatsPanel({ draws, cfg }: { draws: DigitDraw[]; cf
             <button
               key={name}
               onClick={() => setPosition(p)}
+              aria-pressed={position === p}
               className={`rounded-lg px-3 py-1 text-xs transition-colors ${
                 position === p ? "bg-violet-600 text-white" : "bg-slate-800 text-slate-400 hover:text-white"
               }`}
@@ -151,7 +153,7 @@ export default function DigitStatsPanel({ draws, cfg }: { draws: DigitDraw[]; cf
               （{win === 0 ? "全部" : `近${win}期`}，0-{cfg.digitMax} 各 {scoped.length ? (scoped.length / (cfg.digitMax + 1)).toFixed(0) : 0} 次为期望）
             </span>
           </h3>
-          <EChart option={freqChart} height={200} />
+          <EChart option={freqChart} height={200} ariaLabel="所选位置上 0-9 各数字的历史出现次数柱状图" />
         </section>
 
         <section className="card">
@@ -179,7 +181,7 @@ export default function DigitStatsPanel({ draws, cfg }: { draws: DigitDraw[]; cf
               （五位之和 · {win === 0 ? "全部" : `近${win}期`} · 理论均值 {(cfg.positions * cfg.digitMax) / 2}）
             </span>
           </h3>
-          <EChart option={sumChart} height={180} />
+          <EChart option={sumChart} height={180} ariaLabel="五位数字之和的分布柱状图" />
         </section>
 
         <section className="card">

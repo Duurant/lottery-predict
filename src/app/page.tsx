@@ -10,25 +10,31 @@ const FEATURES = [
     href: "/dlt",
     emoji: "📈",
     title: "走势图",
-    desc: "经典期号×号码网格走势，红球高亮、遗漏标注，30/50/100 期切换。",
+    desc: "大乐透 / 双色球经典期号×号码网格，红球高亮、遗漏标注，30/50/100 期切换；排列五按位独立走势。",
   },
   {
     href: "/ssq",
     emoji: "🧮",
     title: "统计分析",
-    desc: "号码频率、冷热排行、当前遗漏、和值趋势、奇偶大小分布一应俱全。",
+    desc: "号码频率、冷热排行、当前遗漏、和值趋势、奇偶大小分布一应俱全，三个彩种各有面板。",
   },
   {
     href: "/generator",
     emoji: "🎲",
     title: "号码生成器",
-    desc: "机选 + 条件过滤：奇偶比、大小比、和值范围、连号限制，一键多注。",
+    desc: "机选 + 条件过滤：奇偶比、大小比、和值范围、连号限制，一键多注、可复制。",
   },
   {
     href: "/predict",
     emoji: "🔮",
     title: "多方案智能预测",
     desc: "最优 / 次优 / 纯机选三种方案，同价位覆盖更多号码，附全量回测与配对检验。",
+  },
+  {
+    href: "/p5",
+    emoji: "🎯",
+    title: "排列五专区",
+    desc: "5 位数字按位分析：各位频率与遗漏、和值跨度、重号统计，以及去重铺开方案。",
   },
 ];
 
@@ -64,7 +70,7 @@ export default function Home() {
       <Disclaimer />
 
       {/* 功能入口 */}
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {FEATURES.map((f) => (
           <Link
             key={f.href}

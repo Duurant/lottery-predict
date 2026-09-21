@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import CopyButton from "@/components/CopyButton";
 import DigitBall from "@/components/DigitBall";
 import Disclaimer from "@/components/Disclaimer";
 import {
@@ -83,7 +84,7 @@ export default function DigitPredictView({
       <Disclaimer />
 
       {draws.length === 0 ? (
-        <p className="card text-center text-sm text-slate-500">暂无数据，请先运行 npm run fetch -- --only p5。</p>
+        <p className="card text-center text-sm text-slate-500">数据暂时不可用，请稍后再来。</p>
       ) : (
         <>
           {/* 方案选择 */}
@@ -95,6 +96,7 @@ export default function DigitPredictView({
                 <button
                   key={s.id}
                   onClick={() => setStrategy(s.id)}
+                  aria-pressed={active}
                   className={`rounded-xl border p-3 text-left transition-colors ${
                     active
                       ? isBest
@@ -153,6 +155,11 @@ export default function DigitPredictView({
                   >
                     ⟳ 换一批
                   </button>
+                  <CopyButton
+                    label="复制全部"
+                    className="bg-slate-800 px-3 py-1.5 text-sm"
+                    text={result.tickets.map(digitText).join("\n")}
+                  />
                 </div>
               </div>
 
@@ -168,10 +175,11 @@ export default function DigitPredictView({
                         <DigitBall key={p} n={n} size="md" title={`第 ${p + 1} 位`} />
                       ))}
                     </div>
-                    <span className="ml-auto text-xs tabular-nums text-slate-500">
+                    <span className="text-xs tabular-nums text-slate-500">
                       号码 <span className="text-violet-300">{digitText(t)}</span> · 和值{" "}
                       <span className="text-amber-300/90">{t.reduce((a, b) => a + b, 0)}</span>
                     </span>
+                    <CopyButton text={digitText(t)} className="ml-auto" />
                   </div>
                 ))}
               </div>
@@ -203,12 +211,12 @@ export default function DigitPredictView({
                       <th className="py-2 text-left font-normal">方案</th>
                       <th className="py-2 font-normal">
                         每 10 万注期望中奖
-                        <span className="ml-1 text-slate-600">（注）</span>
+                        <span className="ml-1 text-slate-400">（注）</span>
                       </th>
                       <th className="py-2 font-normal">每批去重注数</th>
                       <th className="py-2 font-normal">
                         每注平均命中位数
-                        <span className="ml-1 text-slate-600">理论 {report.matchedExpectation.toFixed(3)}</span>
+                        <span className="ml-1 text-slate-400">理论 {report.matchedExpectation.toFixed(3)}</span>
                       </th>
                       <th className="py-2 font-normal">实测中奖期数</th>
                     </tr>
@@ -293,7 +301,7 @@ export default function DigitPredictView({
                   （五位全不同的理论概率 30.24%）
                 </li>
               </ul>
-              <p className="mt-3 text-[11px] leading-relaxed text-slate-600">
+              <p className="mt-3 text-[11px] leading-relaxed text-slate-400">
                 以上仅是历史统计描述，不参与选号，也不代表下期倾向。
               </p>
             </section>

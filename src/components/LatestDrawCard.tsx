@@ -26,13 +26,13 @@ export default function LatestDrawCard({ game, data }: { game: GameKey; data: Ga
             {latest.red.map((n) => (
               <Ball key={`r${n}`} n={n} zone="red" size="lg" />
             ))}
-            <span className="mx-1 text-slate-600">+</span>
+            <span className="mx-1 text-slate-400">+</span>
             {latest.blue.map((n) => (
               <Ball key={`b${n}`} n={n} zone="blue" size="lg" />
             ))}
           </div>
           <div className="flex items-center justify-between">
-            <CountdownTimer drawDays={cfg.drawDays} drawTime={cfg.drawTime} compact />
+            <CountdownTimer drawDays={cfg.drawDays} drawTime={cfg.drawTime} />
             <Link
               href={`/${game}`}
               className="text-sm text-red-400 hover:text-red-300"
@@ -42,7 +42,7 @@ export default function LatestDrawCard({ game, data }: { game: GameKey; data: Ga
           </div>
         </>
       ) : (
-        <p className="text-sm text-slate-500">暂无数据，请先运行 npm run fetch 抓取开奖数据。</p>
+        <p className="text-sm text-slate-500">数据暂时不可用，请稍后再来。</p>
       )}
     </div>
   );

@@ -3,6 +3,7 @@ import Ball from "@/components/Ball";
 import CountdownTimer from "@/components/CountdownTimer";
 import Disclaimer from "@/components/Disclaimer";
 import GameView from "@/components/GameView";
+import GameSwitch from "@/components/GameSwitch";
 import { loadGame } from "@/lib/data";
 import { GAMES } from "@/lib/games";
 import { encodeDraws } from "@/lib/compact";
@@ -20,6 +21,8 @@ export default function DltPage() {
 
   return (
     <div className="flex flex-col gap-5">
+      <GameSwitch section="home" active="dlt" />
+
       {/* 页头：最新开奖 */}
       <section className="card">
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -31,7 +34,7 @@ export default function DltPage() {
                 <span className="ml-2 tabular-nums">{latest.date}</span>
               </p>
             ) : (
-              <p className="mt-1 text-sm text-slate-500">暂无数据，请先运行 npm run fetch</p>
+              <p className="mt-1 text-sm text-slate-500">数据暂时不可用，请稍后再来。</p>
             )}
           </div>
           {latest && (
@@ -40,12 +43,12 @@ export default function DltPage() {
                 {latest.red.map((n) => (
                   <Ball key={`r${n}`} n={n} zone="red" />
                 ))}
-                <span className="mx-1 text-slate-600">+</span>
+                <span className="mx-1 text-slate-500">+</span>
                 {latest.blue.map((n) => (
                   <Ball key={`b${n}`} n={n} zone="blue" />
                 ))}
               </div>
-              <CountdownTimer drawDays={cfg.drawDays} drawTime={cfg.drawTime} compact />
+              <CountdownTimer drawDays={cfg.drawDays} drawTime={cfg.drawTime} />
             </div>
           )}
         </div>

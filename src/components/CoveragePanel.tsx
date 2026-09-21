@@ -128,7 +128,7 @@ export default function CoveragePanel({
         灰带是纯机选的 ±1.96 标准误范围——差异落进带内就只是随机波动。
       </p>
 
-      <EChart option={chart} height={220} />
+      <EChart option={chart} height={220} ariaLabel="三种方案的覆盖率对比条形图：最优/次优/纯机选在四个覆盖率指标上的实测占比，附机选噪声带" />
 
       <div className="overflow-x-auto">
         <table className="mt-2 w-full min-w-[720px] text-center text-xs">
@@ -171,7 +171,7 @@ export default function CoveragePanel({
                       {pp(s.cell.diff)}
                       {s.cell.significant && <span className="ml-1 text-emerald-400">★</span>}
                     </div>
-                    <div className="text-[10px] leading-tight text-slate-600">
+                    <div className="text-[10px] leading-tight text-slate-400">
                       [{pp(s.cell.ci95[0])}, {pp(s.cell.ci95[1])}] p={pText(s.cell.p)}
                     </div>
                   </td>
@@ -181,7 +181,7 @@ export default function CoveragePanel({
           </tbody>
         </table>
       </div>
-      <p className="mt-1 text-[11px] text-slate-600">
+      <p className="mt-1 text-[11px] text-slate-400">
         ★＝与机选的配对检验 p&lt;0.05。「机选解析基准」是 N 注独立随机的理论值（1−(1−p)^N），
         用于核对实测机选没有算错。
       </p>
