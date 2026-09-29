@@ -285,3 +285,34 @@ export function distinctCount(set: number[][]): number {
   for (const t of set) for (const n of t) s.add(n);
   return s.size;
 }
+
+/** 页面、回测与拟合共用：以上一期已公布的开奖作为周期标识，不读目标期结果。 */
+export function recommendationSeed(game: string, previousCode: string, previousDate: string, salt = 0): number {
+  return hashSeed(game, "recommend-v2", previousCode, previousDate, salt);
+}
+
+/** 形态偏好只做有界的软重抽，每个合法组合始终有机会保留；单注保持机选基准。 */
+export function buildCoverBatch(
+  profiles: { red: ZoneProfile; blue: ZoneProfile },
+  before: number,
+  params: CoverParamsByZone,
+  tickets: number,
+  rand: () => number,
+  score?: (nums: number[]) => number,
+  strength = 0,
+): { red: number[][]; blue: number[][] } {
+  for (let attempt = 0; ; attempt++) {
+    const batch = {
+      red: buildCoverSet(profiles.red, before, params.red, tickets, rand),
+      blue: buildCoverSet(profiles.blue, before, params.blue, tickets, rand),
+    };
+    if (!score || strength <= 0 || tickets === 1 || attempt === 2) return batch;
+    const affinity = batch.red.reduce((s, nums) => s + score(nums), 0) / tickets;
+    if (rand() < 1 - strength + strength * affinity) return batch;
+  }
+}
+
+/** 2026-09-29 验证：0.35 软形态在大乐透覆盖差 -3.42pp（p=.003），不用于系统选号。 */
+export const SHAPE_STRENGTH = 0;
+/** 保留固定候选供拟合复核；不可反复用同一验证段挑选新强度。 */
+export const TRIAL_SHAPE_STRENGTH = 0.35;

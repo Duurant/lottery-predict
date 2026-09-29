@@ -27,10 +27,10 @@ export default function P5Page() {
       <section className="card">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="text-xl font-bold text-white">{cfg.name}</h1>
+            <h1 className="text-xl font-bold text-slate-900">{cfg.name}</h1>
             {latest ? (
-              <p className="mt-1 text-sm text-slate-400">
-                第 <span className="font-semibold text-slate-200">{latest.code}</span> 期
+              <p className="mt-1 text-sm text-slate-500">
+                第 <span className="font-semibold text-slate-700">{latest.code}</span> 期
                 <span className="ml-2 tabular-nums">{latest.date}</span>
               </p>
             ) : (
@@ -44,7 +44,7 @@ export default function P5Page() {
                   <DigitBall key={p} n={n} size="lg" title={`第 ${p + 1} 位`} />
                 ))}
               </div>
-              <CountdownTimer drawDays={cfg.drawDays} drawTime={cfg.drawTime} accent="text-violet-400" />
+              <CountdownTimer drawDays={cfg.drawDays} drawTime={cfg.drawTime} accent="text-violet-600" />
             </div>
           )}
         </div>

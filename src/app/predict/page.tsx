@@ -6,9 +6,9 @@ import { encodeDraws } from "@/lib/compact";
 import { backtestAll, compareCoverage, runStrategy } from "@/lib/predict";
 
 export const metadata: Metadata = {
-  title: "多方案智能预测",
+  title: "推荐方法与验证",
   description:
-    "大乐透、双色球号码方案：最优/次优（覆盖优化，同价位覆盖更多号码）与纯机选对照，附全量回测、覆盖率配对检验与置信区间。开奖为随机事件，任何方案都无法提高单注中奖概率，内容仅供娱乐。",
+    "大乐透、双色球号码方案：充分铺开/适度铺开（覆盖优化，同价位覆盖更多号码）与纯机选对照，附全量回测、覆盖率配对检验与置信区间。开奖为随机事件，任何方案都无法提高单注中奖概率，内容仅供娱乐。",
 };
 
 export default function PredictPage() {

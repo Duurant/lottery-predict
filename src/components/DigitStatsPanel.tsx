@@ -14,7 +14,7 @@ import {
 } from "@/lib/digit";
 
 const WINDOWS = [30, 50, 100, 0] as const; // 0 = 全部
-const AXIS = { axisLabel: { color: "#94a3b8", fontSize: 10 }, axisLine: { lineStyle: { color: "#334155" } } };
+const AXIS = { axisLabel: { color: "#64748b", fontSize: 10 }, axisLine: { lineStyle: { color: "#cbd5e1" } } };
 
 /**
  * 排列五统计分析：各位数字频率、当前遗漏排行、和值/跨度/重复数字分布。
@@ -37,16 +37,16 @@ export default function DigitStatsPanel({ draws, cfg }: { draws: DigitDraw[]; cf
       grid: { left: 40, right: 16, top: 16, bottom: 24 },
       tooltip: {
         trigger: "axis" as const,
-        backgroundColor: "rgba(15,23,42,0.95)",
-        borderColor: "#334155",
-        textStyle: { color: "#e2e8f0", fontSize: 12 },
+        backgroundColor: "rgba(255,255,255,0.98)",
+        borderColor: "#cbd5e1",
+        textStyle: { color: "#334155", fontSize: 12 },
         formatter: (ps: { name: string; value: number }[]) => {
           const p = ps[0];
           return `数字 ${p.name}：出现 ${p.value} 次`;
         },
       },
       xAxis: { type: "category", data: freq.map((_, n) => String(n)), ...AXIS },
-      yAxis: { type: "value", ...AXIS, splitLine: { lineStyle: { color: "#1e293b" } } },
+      yAxis: { type: "value", ...AXIS, splitLine: { lineStyle: { color: "#e2e8f0" } } },
       series: [
         {
           type: "bar",
@@ -73,16 +73,16 @@ export default function DigitStatsPanel({ draws, cfg }: { draws: DigitDraw[]; cf
       grid: { left: 40, right: 16, top: 16, bottom: 24 },
       tooltip: {
         trigger: "axis" as const,
-        backgroundColor: "rgba(15,23,42,0.95)",
-        borderColor: "#334155",
-        textStyle: { color: "#e2e8f0", fontSize: 12 },
+        backgroundColor: "rgba(255,255,255,0.98)",
+        borderColor: "#cbd5e1",
+        textStyle: { color: "#334155", fontSize: 12 },
         formatter: (ps: { name: string; value: number }[]) => {
           const p = ps[0];
           return `和值 ${p.name}：${p.value} 期`;
         },
       },
       xAxis: { type: "category", data: sumDist.map((x) => String(x.sum)), ...AXIS },
-      yAxis: { type: "value", ...AXIS, splitLine: { lineStyle: { color: "#1e293b" } } },
+      yAxis: { type: "value", ...AXIS, splitLine: { lineStyle: { color: "#e2e8f0" } } },
       series: [
         { type: "bar", data: sumDist.map((x) => x.count), barWidth: "60%", itemStyle: { color: "#8b5cf6" } },
       ],
@@ -114,14 +114,14 @@ export default function DigitStatsPanel({ draws, cfg }: { draws: DigitDraw[]; cf
       {/* 范围与位置 */}
       <div className="flex flex-wrap items-center gap-4">
         <div className="flex items-center gap-2">
-          <span className="text-sm text-slate-400">统计范围</span>
+          <span className="text-sm text-slate-500">统计范围</span>
           {WINDOWS.map((w) => (
             <button
               key={w}
               onClick={() => setWin(w)}
               aria-pressed={win === w}
               className={`rounded-lg px-3 py-1 text-xs transition-colors ${
-                win === w ? "bg-violet-600 text-white" : "bg-slate-800 text-slate-400 hover:text-white"
+                win === w ? "bg-violet-100 text-slate-900" : "bg-slate-100 text-slate-500 hover:text-slate-900"
               }`}
             >
               {w === 0 ? "全部历史" : `近${w}期`}
@@ -129,14 +129,14 @@ export default function DigitStatsPanel({ draws, cfg }: { draws: DigitDraw[]; cf
           ))}
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-sm text-slate-400">位置</span>
+          <span className="text-sm text-slate-500">位置</span>
           {cfg.positionNames.map((name, p) => (
             <button
               key={name}
               onClick={() => setPosition(p)}
               aria-pressed={position === p}
               className={`rounded-lg px-3 py-1 text-xs transition-colors ${
-                position === p ? "bg-violet-600 text-white" : "bg-slate-800 text-slate-400 hover:text-white"
+                position === p ? "bg-violet-100 text-slate-900" : "bg-slate-100 text-slate-500 hover:text-slate-900"
               }`}
             >
               {name}
@@ -147,7 +147,7 @@ export default function DigitStatsPanel({ draws, cfg }: { draws: DigitDraw[]; cf
 
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="card">
-          <h3 className="mb-3 text-sm font-semibold text-white">
+          <h3 className="mb-3 text-sm font-semibold text-slate-900">
             {cfg.positionNames[position]}数字频率
             <span className="ml-2 text-xs font-normal text-slate-500">
               （{win === 0 ? "全部" : `近${win}期`}，0-{cfg.digitMax} 各 {scoped.length ? (scoped.length / (cfg.digitMax + 1)).toFixed(0) : 0} 次为期望）
@@ -157,16 +157,16 @@ export default function DigitStatsPanel({ draws, cfg }: { draws: DigitDraw[]; cf
         </section>
 
         <section className="card">
-          <h3 className="mb-3 text-sm font-semibold text-white">
+          <h3 className="mb-3 text-sm font-semibold text-slate-900">
             {cfg.positionNames[position]}当前遗漏
             <span className="ml-2 text-xs font-normal text-slate-500">（基于全部历史，单位：期）</span>
           </h3>
           <div className="grid grid-cols-2 gap-2 text-xs">
             {omissionRank.map((r) => (
-              <div key={r.n} className="flex items-center justify-between rounded-lg bg-slate-800/50 px-3 py-2">
-                <span className={`${chip} bg-violet-500/15 text-violet-300`}>{r.n}</span>
-                <span className="tabular-nums text-slate-300">
-                  遗漏 <span className="font-semibold text-white">{r.o}</span> 期
+              <div key={r.n} className="flex items-center justify-between rounded-lg bg-slate-100/50 px-3 py-2">
+                <span className={`${chip} bg-violet-500/15 text-violet-700`}>{r.n}</span>
+                <span className="tabular-nums text-slate-600">
+                  遗漏 <span className="font-semibold text-slate-900">{r.o}</span> 期
                   <span className="ml-1 text-slate-500">（历史最长 {r.max}）</span>
                 </span>
               </div>
@@ -175,7 +175,7 @@ export default function DigitStatsPanel({ draws, cfg }: { draws: DigitDraw[]; cf
         </section>
 
         <section className="card">
-          <h3 className="mb-3 text-sm font-semibold text-white">
+          <h3 className="mb-3 text-sm font-semibold text-slate-900">
             和值分布
             <span className="ml-2 text-xs font-normal text-slate-500">
               （五位之和 · {win === 0 ? "全部" : `近${win}期`} · 理论均值 {(cfg.positions * cfg.digitMax) / 2}）
@@ -185,7 +185,7 @@ export default function DigitStatsPanel({ draws, cfg }: { draws: DigitDraw[]; cf
         </section>
 
         <section className="card">
-          <h3 className="mb-3 text-sm font-semibold text-white">
+          <h3 className="mb-3 text-sm font-semibold text-slate-900">
             跨度与重复数字
             <span className="ml-2 text-xs font-normal text-slate-500">（{win === 0 ? "全部" : `近${win}期`}）</span>
           </h3>
@@ -196,7 +196,7 @@ export default function DigitStatsPanel({ draws, cfg }: { draws: DigitDraw[]; cf
                 {spanDist
                   .filter((x) => x.count > 0)
                   .map((x) => (
-                    <span key={x.span} className={`${chip} bg-slate-800 text-slate-300`}>
+                    <span key={x.span} className={`${chip} bg-slate-100 text-slate-600`}>
                       {x.span}
                       <span className="text-slate-500">{Math.round((x.count / scoped.length) * 100)}%</span>
                     </span>
@@ -209,7 +209,7 @@ export default function DigitStatsPanel({ draws, cfg }: { draws: DigitDraw[]; cf
               </div>
               <div className="flex flex-wrap gap-1">
                 {repeatDist.map((x) => (
-                  <span key={x.r} className={`${chip} bg-slate-800 text-slate-300`}>
+                  <span key={x.r} className={`${chip} bg-slate-100 text-slate-600`}>
                     {x.r} 个
                     <span className="text-slate-500">
                       {scoped.length ? Math.round((x.count / scoped.length) * 100) : 0}%

@@ -102,3 +102,13 @@ npx tsc --noEmit       # 类型检查（无 lint 脚本、无测试框架，二�
 ## 合规红线（不要越界）
 
 本项目定位是免费的历史数据统计与娱乐工具，页面与 README 的免责声明（开奖为独立随机事件、无法预测、理性购彩、未满 18 周岁禁止购彩）**必须保留且清晰可见**。禁止新增任何付费预测/代购/投注渠道，禁止把统计「评分」表述为可提高中奖概率的预测能力——`predict.ts` 的策略与回测明确以随机基准为参照，改动算法时保持这一基调。「覆盖优化」是唯一有真实增益的方案，其表述边界见上文「覆盖优化（cover）方案的约束」。
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

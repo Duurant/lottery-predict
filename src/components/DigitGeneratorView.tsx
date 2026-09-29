@@ -65,8 +65,8 @@ export default function DigitGeneratorView({ posFreq }: { posFreq: number[][] })
   return (
     <div className="flex flex-col gap-5">
       <section className="pt-2 text-center">
-        <h1 className="text-2xl font-bold text-white">号码生成器 · 排列五</h1>
-        <p className="mx-auto mt-2 max-w-2xl text-sm text-slate-400">
+        <h1 className="text-2xl font-bold text-slate-900">号码生成器 · 排列五</h1>
+        <p className="mx-auto mt-2 max-w-2xl text-sm text-slate-500">
           5 位数字、每位 0-9、允许重复与前导 0。生成的多注之间保证互不重复——
           这是本玩法唯一能真实省钱的地方（避免买到重复注）。
         </p>
@@ -81,14 +81,14 @@ export default function DigitGeneratorView({ posFreq }: { posFreq: number[][] })
           <section className="card">
             <div className="flex flex-wrap items-center gap-4">
               <div className="flex items-center gap-2">
-                <span className="text-sm text-slate-400">注数</span>
+                <span className="text-sm text-slate-500">注数</span>
                 {COUNT_OPTIONS.map((c) => (
                   <button
                     key={c}
                     onClick={() => setCount(c)}
                     aria-pressed={count === c}
                     className={`rounded-lg px-3 py-1 text-xs transition-colors ${
-                      count === c ? "bg-violet-600 text-white" : "bg-slate-800 text-slate-400 hover:text-white"
+                      count === c ? "bg-violet-100 text-slate-900" : "bg-slate-100 text-slate-500 hover:text-slate-900"
                     }`}
                   >
                     {c} 注
@@ -96,12 +96,12 @@ export default function DigitGeneratorView({ posFreq }: { posFreq: number[][] })
                 ))}
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-sm text-slate-400">选号风格</span>
+                <span className="text-sm text-slate-500">选号风格</span>
                 <button
                   onClick={() => setWeighted(false)}
                   aria-pressed={!weighted}
                   className={`rounded-lg px-3 py-1 text-xs transition-colors ${
-                    !weighted ? "bg-violet-600 text-white" : "bg-slate-800 text-slate-400 hover:text-white"
+                    !weighted ? "bg-violet-100 text-slate-900" : "bg-slate-100 text-slate-500 hover:text-slate-900"
                   }`}
                 >
                   均匀随机
@@ -110,7 +110,7 @@ export default function DigitGeneratorView({ posFreq }: { posFreq: number[][] })
                   onClick={() => setWeighted(true)}
                   aria-pressed={weighted}
                   className={`rounded-lg px-3 py-1 text-xs transition-colors ${
-                    weighted ? "bg-violet-600 text-white" : "bg-slate-800 text-slate-400 hover:text-white"
+                    weighted ? "bg-violet-100 text-slate-900" : "bg-slate-100 text-slate-500 hover:text-slate-900"
                   }`}
                 >
                   按历史频率加权
@@ -118,19 +118,19 @@ export default function DigitGeneratorView({ posFreq }: { posFreq: number[][] })
               </div>
               <button
                 onClick={() => setSeed(Math.floor(Math.random() * 2 ** 31))}
-                className="ml-auto rounded-lg bg-violet-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-violet-500"
+                className="ml-auto rounded-lg bg-violet-100 px-3 py-1.5 text-sm font-medium text-slate-900 hover:bg-violet-500"
               >
                 ⟳ 换一批
               </button>
             </div>
             <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
-              两种风格的中奖概率<strong className="text-slate-400">完全相同</strong>（每位独立均匀，
+              两种风格的中奖概率<strong className="text-slate-500">完全相同</strong>（每位独立均匀，
               历史频率不改变未来）；区别只是号码看起来更「随机」还是更「贴合历史」。
             </p>
           </section>
 
           <section className="card">
-            <h3 className="mb-3 text-sm font-semibold text-white">
+            <h3 className="mb-3 text-sm font-semibold text-slate-900">
               生成结果
               <span className="ml-2 text-xs font-normal text-slate-500">
                 {tickets.length} 注 · 互不重复
@@ -146,7 +146,7 @@ export default function DigitGeneratorView({ posFreq }: { posFreq: number[][] })
               {tickets.map((t, i) => (
                 <div
                   key={t.join("")}
-                  className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-slate-800/70 bg-slate-900/40 px-4 py-2.5"
+                  className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-slate-200/70 bg-white/40 px-4 py-2.5"
                 >
                   <span className="w-10 text-xs text-slate-500">第 {i + 1} 注</span>
                   <div className="flex items-center gap-1.5">
@@ -155,8 +155,8 @@ export default function DigitGeneratorView({ posFreq }: { posFreq: number[][] })
                     ))}
                   </div>
                   <span className="text-xs tabular-nums text-slate-500">
-                    号码 <span className="text-violet-300">{digitText(t)}</span> · 和值{" "}
-                    <span className="text-amber-300/90">{t.reduce((a, b) => a + b, 0)}</span>
+                    号码 <span className="text-violet-700">{digitText(t)}</span> · 和值{" "}
+                    <span className="text-amber-700/90">{t.reduce((a, b) => a + b, 0)}</span>
                   </span>
                   <CopyButton text={digitText(t)} className="ml-auto" />
                 </div>

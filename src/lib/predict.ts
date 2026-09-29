@@ -11,21 +11,22 @@
  * 单注平均命中都应与随机期望处于同一水平（页面回测与噪声带会显示这一点）。
  *
  * 唯一的真实差异在「同价位多注的覆盖率」：减少各注之间的重叠可以降低重复投注的浪费，
- * 从而提高「至少中得某奖级」的概率。原理与参数来源见 coverage.ts 与 npm run fit。
+ * 从而提高「至少中得基本奖级」的概率。原理与参数来源见 coverage.ts 与 npm run fit。
  */
 import type { Draw, GameConfig, GameKey } from "./games";
 import {
-  buildCoverSet,
+  buildCoverBatch,
   buildProfile,
   coverParams,
-  hashSeed,
+  recommendationSeed,
+  SHAPE_STRENGTH,
   omissionAt,
   recentFreqAt,
   type ZoneProfile,
 } from "./coverage";
 import { batchAtLeastOne, judgePrize, singleBlueAnyProb, singlePrizeProb, singleRedGeProb } from "./prize";
 import { hitsOf, mean, pairedDiff, rateSe } from "./stat";
-import { bigSmallRatio, mulberry32, oddEvenRatio, stdDev, sumOf } from "./stats";
+import { bigSmallRatio, mulberry32, oddEvenRatio, stdDev, sumOf, shapeScorer } from "./stats";
 
 /* ---------------- 方案定义 ---------------- */
 
@@ -41,24 +42,24 @@ export interface StrategyDef {
 export const STRATEGIES: StrategyDef[] = [
   {
     id: "best",
-    name: "最优方案",
+    name: "充分铺开",
     tagline: "同价覆盖最多号码",
     description:
-      "不猜号码，而是分配号码：红区让同批各注尽量不重复、蓝区优先覆盖不同号码，把每一注的钱都用在不同的号码组合上。开奖是均匀随机事件，它的单注命中期望与机选完全相同（见下方回测），但同样注数下「至少中得某奖级」的概率更高——收益来自减少各注之间的重复计数，属组合数学结论，不是预测能力。注数 ≥ 2 才有意义，且它不会让你中得更大的奖。",
+      "不猜号码，而是分配号码：红区让同批各注尽量不重复、蓝区优先覆盖不同号码，把每一注的钱都用在不同的号码组合上。开奖是均匀随机事件，它的单注命中期望与机选完全相同（见下方回测），但具体多注覆盖表现需看当前数据的配对验证，不能据此承诺未来中奖。注数 ≥ 2 才有意义，且它不会让你中得更大的奖。",
   },
   {
     id: "second",
-    name: "次优方案",
+    name: "适度铺开",
     tagline: "号码更集中，覆盖几乎不变",
     description:
-      "与最优方案同一套覆盖优化思路，但铺开强度取「覆盖率不显著下降前提下的最小值」（拟合判据：与最优差距 ≤1 个标准误），因此号码更集中、更接近传统选号观感。实测两种方案的覆盖率差异在噪声量级内，且都显著高于机选：真正的区别只是号码铺得多开。如果你不喜欢号码过于分散，选它。",
+      "与最优方案同一套覆盖优化思路，但铺开强度取「覆盖率不显著下降前提下的最小值」（拟合判据：与最优差距 ≤1 个标准误），因此号码更集中、更接近传统选号观感。这是不同的号码分配方式，具体覆盖差异以下方当前数据验证为准。如果你不喜欢号码过于分散，选它。",
   },
   {
     id: "random",
     name: "纯机选（对照）",
     tagline: "均匀随机，作为对照组",
     description:
-      "完全均匀随机选号，不掺任何分布偏好。它同时是对照组：各方案的单注平均命中率都应与它处于同一水平——这正是「开奖无法被预测」的直观体现；只有覆盖率口径上，覆盖优化的两种方案会与它有稳定差异（多注时）。",
+      "完全均匀随机选号，不掺任何分布偏好。它同时是对照组：各方案的单注平均命中率都应与它处于同一水平——这正是「开奖无法被预测」的直观体现；覆盖率上的差异需独立检验，不能根据历史表现承诺未来效果。",
   },
 ];
 
@@ -66,8 +67,6 @@ export const STRATEGIES: StrategyDef[] = [
 
 const WINDOW = 30;
 const BACKTEST_DRAWS = 100;
-/** 单注形态约束的重试上限（和值区间 + 红区不全奇/全偶） */
-const SHAPE_TRIES = 60;
 
 /** 某区在一期里的号码个数与上限 */
 function zoneSpec(cfg: GameConfig, zone: "red" | "blue"): { max: number; pick: number } {
@@ -104,17 +103,6 @@ export interface Combo {
   bigSmall: string;
 }
 
-/** 软性形态约束：和值区间 + 红区不全奇/不全偶 */
-function shapeOk(red: number[], sumLo: number, sumHi: number, pick: number): boolean {
-  const sum = red.reduce((a, b) => a + b, 0);
-  if (sum < sumLo || sum > sumHi) return false;
-  if (pick >= 5) {
-    const [odd, even] = oddEvenRatio(red);
-    if (odd === 0 || even === 0) return false;
-  }
-  return true;
-}
-
 function toCombo(
   redNums: number[],
   blueNums: number[],
@@ -134,11 +122,7 @@ function toCombo(
   };
 }
 
-/**
- * 一批选号（展示用）：红蓝两区各自按方案参数铺开选号，并叠加形态约束。
- * 形态约束是软性的：整批重试最多 SHAPE_TRIES 次，仍不满足就放弃约束直接输出，
- * 保证页面永远有结果、不死循环。
- */
+/** 展示与回测走完全相同的生成过程；seed=1 表示该周期的固定主推荐。 */
 function buildCombos(
   cfg: GameConfig,
   draws: Draw[],
@@ -149,19 +133,8 @@ function buildCombos(
   id: StrategyId,
   seed: number
 ): Combo[] {
-  const sums = draws.slice(-100).map(sumOf);
-  const sumLo = Math.round(mean(sums) - 1.2 * stdDev(sums));
-  const sumHi = Math.round(mean(sums) + 1.2 * stdDev(sums));
-
-  for (let attempt = 0; attempt <= SHAPE_TRIES; attempt++) {
-    const relaxed = attempt === SHAPE_TRIES;
-    const rand = mulberry32(hashSeed(cfg.key, id, seed, attempt));
-    const redSet = buildCoverSet(redProfile, i, coverParams(cfg.key, "red", id), count, rand);
-    const blueSet = buildCoverSet(blueProfile, i, coverParams(cfg.key, "blue", id), count, rand);
-    if (!relaxed && !redSet.every((r) => shapeOk(r, sumLo, sumHi, redProfile.pick))) continue;
-    return redSet.map((r, t) => toCombo(r, blueSet[t], redProfile, blueProfile, i));
-  }
-  return [];
+  const batch = recommendationBatch(cfg, draws, i, id, count, { red: redProfile, blue: blueProfile }, seed - 1);
+  return batch.red.map((r, t) => toCombo(r, batch.blue[t], redProfile, blueProfile, i));
 }
 
 /* ---------------- 回测 ---------------- */
@@ -178,19 +151,20 @@ interface Batch {
  *  - random：不铺开 → 每注独立均匀随机（机选基准）
  * 随机数流对同一期是同一个种子，因此不同方案之间、以及与机选之间都是配对可比的。
  */
-function pickBatch(
+export function recommendationBatch(
   cfg: GameConfig,
   draws: Draw[],
   i: number,
   id: StrategyId,
   tickets: number,
-  profiles: { red: ZoneProfile; blue: ZoneProfile }
+  profiles: { red: ZoneProfile; blue: ZoneProfile },
+  salt = 0,
 ): Batch {
-  const rand = mulberry32(hashSeed(cfg.key, "batch", draws[i].code));
-  return {
-    red: buildCoverSet(profiles.red, i, coverParams(cfg.key, "red", id), tickets, rand),
-    blue: buildCoverSet(profiles.blue, i, coverParams(cfg.key, "blue", id), tickets, rand),
-  };
+  const previous = draws[i - 1];
+  const rand = mulberry32(recommendationSeed(cfg.key, previous?.code ?? "empty", previous?.date ?? "", salt));
+  return buildCoverBatch(profiles, i,
+    { red: coverParams(cfg.key, "red", id), blue: coverParams(cfg.key, "blue", id) },
+    tickets, rand, id === "random" ? undefined : shapeScorer(draws, i), id === "random" ? 0 : SHAPE_STRENGTH);
 }
 
 export interface BacktestResult {
@@ -337,7 +311,7 @@ export function backtestStrategy(
     blue: buildProfile(draws, "blue", cfg.blueMax),
   };
   const start = Math.max(draws.length - B, 1);
-  const w = walkBatch(cfg, draws, start, tickets, (i) => pickBatch(cfg, draws, i, id, tickets, profiles));
+  const w = walkBatch(cfg, draws, start, tickets, (i) => recommendationBatch(cfg, draws, i, id, tickets, profiles));
 
   return {
     strategy: id,
@@ -425,12 +399,12 @@ export function compareCoverage(cfg: GameConfig, draws: Draw[], tickets: number,
   };
   const ids = STRATEGIES.map((s) => s.id);
   const walks = new Map<StrategyId, BatchWalk>(
-    ids.map((id) => [id, walkBatch(cfg, draws, from, tickets, (i) => pickBatch(cfg, draws, i, id, tickets, profiles))])
+    ids.map((id) => [id, walkBatch(cfg, draws, from, tickets, (i) => recommendationBatch(cfg, draws, i, id, tickets, profiles))])
   );
   const randomWalk = walks.get("random")!;
 
   const defs: { key: CoverageMetricKey; label: string; hint: string }[] = [
-    { key: "anyPrize", label: "至少中得某奖级", hint: "该批号码中任意一注中得任意奖级的期数占比" },
+    { key: "anyPrize", label: "至少中得基本奖级", hint: "按固定基础奖级口径统计，不含依赖奖池的双色球福运奖及临时派奖" },
     { key: "blueAny", label: `蓝区至少命中 1 个`, hint: `该批号码中至少一注命中${cfg.blueName}的期数占比` },
     { key: "redGe2", label: `红区至少命中 2 个`, hint: `该批号码中至少一注命中 2 个${cfg.redName}号码的期数占比` },
     { key: "redGe3", label: `红区至少命中 3 个`, hint: `该批号码中至少一注命中 3 个${cfg.redName}号码的期数占比` },

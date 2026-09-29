@@ -37,7 +37,7 @@ export default function DigitTrendChart({ draws, cfg }: { draws: DigitDraw[]; cf
     <div className="flex flex-col gap-4">
       {grids.map(({ position, omission }) => (
         <section key={position} className="card">
-          <h3 className="mb-3 text-sm font-semibold text-white">
+          <h3 className="mb-3 text-sm font-semibold text-slate-900">
             {cfg.positionNames[position]}走势
             <span className="ml-2 text-xs font-normal text-slate-500">
               （0-{cfg.digitMax} · 共 {draws.length} 期）
@@ -47,9 +47,9 @@ export default function DigitTrendChart({ draws, cfg }: { draws: DigitDraw[]; cf
             <table className="border-separate border-spacing-y-0.5 text-center text-[11px] tabular-nums">
               <thead>
                 <tr className="text-slate-500">
-                  <th className="sticky left-0 z-10 bg-slate-900 px-2 text-left font-normal">期号</th>
+                  <th className="sticky left-0 z-10 bg-white px-2 text-left font-normal">期号</th>
                   {Array.from({ length: cfg.digitMax + 1 }, (_, n) => (
-                    <th key={n} className="px-1 font-normal text-slate-400">
+                    <th key={n} className="px-1 font-normal text-slate-500">
                       {n}
                     </th>
                   ))}
@@ -57,8 +57,8 @@ export default function DigitTrendChart({ draws, cfg }: { draws: DigitDraw[]; cf
               </thead>
               <tbody>
                 {draws.map((d, i) => (
-                  <tr key={d.code} className="text-slate-400">
-                    <td className="sticky left-0 z-10 whitespace-nowrap bg-slate-900 px-2 text-left text-slate-500">
+                  <tr key={d.code} className="text-slate-500">
+                    <td className="sticky left-0 z-10 whitespace-nowrap bg-white px-2 text-left text-slate-500">
                       {d.code}
                     </td>
                     {Array.from({ length: cfg.digitMax + 1 }, (_, n) => {

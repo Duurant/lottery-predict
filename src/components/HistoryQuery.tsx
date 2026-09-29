@@ -32,9 +32,9 @@ export default function HistoryQuery({ draws, cfg }: { draws: Draw[]; cfg: GameC
             setQuery(e.target.value);
             setPage(0);
           }}
-          placeholder="输入期号（如 2026103）或日期（如 2026-09）搜索"
+          placeholder={`输入期号（如 ${cfg.key === "dlt" ? "26103" : "2026103"}）或日期搜索`}
           aria-label="按期号或日期搜索开奖记录"
-          className="w-full max-w-xs rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:border-red-500 focus:outline-none sm:w-72"
+          className="w-full max-w-xs rounded-lg border border-slate-300 bg-slate-100/60 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-500 focus:border-red-500 focus:outline-none sm:w-72"
         />
         <span className="text-xs text-slate-500">
           共匹配 {filtered.length} 期
@@ -45,17 +45,17 @@ export default function HistoryQuery({ draws, cfg }: { draws: Draw[]; cfg: GameC
         {slice.map((d) => (
           <div
             key={d.code}
-            className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-slate-800/70 bg-slate-900/40 px-4 py-2.5"
+            className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-slate-200/70 bg-white/40 px-4 py-2.5"
           >
             <div className="w-32 text-sm">
-              <span className="font-semibold tabular-nums text-slate-200">{d.code}</span>
+              <span className="font-semibold tabular-nums text-slate-700">{d.code}</span>
               <span className="ml-2 text-xs tabular-nums text-slate-500">{d.date}</span>
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
               {d.red.map((n) => (
                 <Ball key={`r${n}`} n={n} zone="red" size="sm" />
               ))}
-              <span className="mx-0.5 text-xs text-slate-400">+</span>
+              <span className="mx-0.5 text-xs text-slate-500">+</span>
               {d.blue.map((n) => (
                 <Ball key={`b${n}`} n={n} zone="blue" size="sm" />
               ))}
@@ -72,7 +72,7 @@ export default function HistoryQuery({ draws, cfg }: { draws: Draw[]; cfg: GameC
           <button
             disabled={safePage === 0}
             onClick={() => setPage(safePage - 1)}
-            className="rounded-lg bg-slate-800 px-3 py-1.5 text-slate-300 disabled:opacity-40 enabled:hover:bg-slate-700"
+            className="rounded-lg bg-slate-100 px-3 py-1.5 text-slate-600 disabled:opacity-40 enabled:hover:bg-slate-200"
           >
             上一页
           </button>
@@ -82,14 +82,14 @@ export default function HistoryQuery({ draws, cfg }: { draws: Draw[]; cfg: GameC
           <button
             disabled={safePage >= pages - 1}
             onClick={() => setPage(safePage + 1)}
-            className="rounded-lg bg-slate-800 px-3 py-1.5 text-slate-300 disabled:opacity-40 enabled:hover:bg-slate-700"
+            className="rounded-lg bg-slate-100 px-3 py-1.5 text-slate-600 disabled:opacity-40 enabled:hover:bg-slate-200"
           >
             下一页
           </button>
         </div>
       )}
 
-      <p className="mt-3 text-center text-xs text-slate-400">
+      <p className="mt-3 text-center text-xs text-slate-500">
         {cfg.name}共收录 {draws.length} 期开奖数据
       </p>
     </div>

@@ -34,12 +34,8 @@ export interface PredictInitial {
  * 见 scripts/fit-coverage.mjs / .verify/fit-report.json）——不是营销话术：
  * 说的是「同价位多注的覆盖率」，不是「单注命中率」。
  */
-const BEST_BADGE_TITLE =
-  "实测依据（npm run fit，全量 walk-forward 配对检验，5 注）：「至少中得某奖级」大乐透 33.7% vs 机选 29.5%（+4.2pp, p=0.016）、双色球 30.9% vs 27.1%（+3.8pp, p<0.001）；「蓝区至少命中 1 个」大乐透 98.5% vs 85.7%、双色球 29.8% vs 25.5%。单注平均命中与机选无显著差异——提高的是同价位至少中得一注的机会，不是单注命中率。";
-
-const SECOND_BADGE_TITLE =
-  "在「覆盖率不显著下降」的前提下取最小铺开强度（拟合判据：与最优差距 ≤1SE）。实测 5 注验证段：大乐透「至少中奖」33.8% vs 机选 29.5%（+4.3pp, p=0.011）、双色球 30.0% vs 27.1%（+2.9pp, p=0.004）——两种方案都显著高于机选，差异在噪声量级内。真正的区别是号码铺得多开：次优的号码更集中（大乐透 5 注平均覆盖 24.4 个不同前区号，最优为 25.0）。";
-
+const BEST_BADGE_TITLE = "同一批号码优先铺开。具体覆盖表现以下方当前数据回测为准，不代表单注更准。";
+const SECOND_BADGE_TITLE = "降低铺开强度，提供较集中号码搭配，不表示预测能力高低。";
 const COUNT_OPTIONS = [1, 3, 5, 8];
 
 const fmtPct = (x: number) => `${(x * 100).toFixed(1)}%`;
@@ -130,9 +126,9 @@ export default function PredictView({
       grid: { left: 100, right: 40, top: 16, bottom: 28 },
       tooltip: {
         trigger: "axis" as const,
-        backgroundColor: "rgba(15,23,42,0.95)",
-        borderColor: "#334155",
-        textStyle: { color: "#e2e8f0", fontSize: 12 },
+        backgroundColor: "rgba(255,255,255,0.98)",
+        borderColor: "#cbd5e1",
+        textStyle: { color: "#334155", fontSize: 12 },
         // trigger: "axis" 时 formatter 收到的是参数数组，必须按数组处理
         formatter: (ps: { name: string; value: number }[]) => {
           const p = ps[0];
@@ -141,14 +137,14 @@ export default function PredictView({
       },
       xAxis: {
         type: "value",
-        axisLabel: { color: "#94a3b8", fontSize: 10 },
-        splitLine: { lineStyle: { color: "#1e293b" } },
+        axisLabel: { color: "#64748b", fontSize: 10 },
+        splitLine: { lineStyle: { color: "#e2e8f0" } },
       },
       yAxis: {
         type: "category",
         data: comparison.map((b) => nameOf(b.strategy)).reverse(),
-        axisLabel: { color: "#94a3b8", fontSize: 11 },
-        axisLine: { lineStyle: { color: "#334155" } },
+        axisLabel: { color: "#64748b", fontSize: 11 },
+        axisLine: { lineStyle: { color: "#cbd5e1" } },
       },
       series: [
         {
@@ -194,9 +190,9 @@ export default function PredictView({
   return (
     <div className="flex flex-col gap-5">
       <section className="pt-2 text-center">
-        <h1 className="text-2xl font-bold text-white">多方案智能预测</h1>
-        <p className="mx-auto mt-2 max-w-2xl text-sm text-slate-400">
-          三种方案：最优（覆盖优化·最大铺开）、次优（覆盖优化·温和铺开）、纯机选（对照）。
+        <h1 className="text-2xl font-bold text-slate-900">推荐方法与验证</h1>
+        <p className="mx-auto mt-2 max-w-2xl text-sm text-slate-500">
+          对照三种号码分配方式：充分铺开、适度铺开、随机对照。
           它们都不预测号码，区别只在「同价位多注之间如何分配号码」。
         </p>
       </section>
@@ -231,10 +227,10 @@ export default function PredictView({
                           ? "border-lime-400/70 bg-lime-500/10"
                           : "border-red-500/60 bg-red-500/10"
                       : isBest
-                        ? "border-emerald-500/40 bg-slate-900/60 hover:border-emerald-400/70"
+                        ? "border-emerald-500/40 bg-white/60 hover:border-emerald-400/70"
                         : isSecond
-                          ? "border-lime-500/40 bg-slate-900/60 hover:border-lime-400/70"
-                          : "border-slate-800 bg-slate-900/60 hover:border-slate-600"
+                          ? "border-lime-500/40 bg-white/60 hover:border-lime-400/70"
+                          : "border-slate-200 bg-white/60 hover:border-slate-300"
                   }`}
                 >
                   <div className="flex items-center gap-1.5">
@@ -242,11 +238,11 @@ export default function PredictView({
                       className={`text-sm font-semibold ${
                         active
                           ? isBest
-                            ? "text-emerald-300"
+                            ? "text-emerald-700"
                             : isSecond
-                              ? "text-lime-300"
-                              : "text-red-300"
-                          : "text-white"
+                              ? "text-lime-700"
+                              : "text-red-700"
+                          : "text-slate-900"
                       }`}
                     >
                       {s.name}
@@ -254,15 +250,15 @@ export default function PredictView({
                     {isBest && (
                       <span
                         title={BEST_BADGE_TITLE}
-                        className="rounded-full bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-medium text-emerald-300"
+                        className="rounded-full bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700"
                       >
-                        实测最优
+                        覆盖分配
                       </span>
                     )}
                     {isSecond && (
                       <span
                         title={SECOND_BADGE_TITLE}
-                        className="rounded-full bg-lime-500/20 px-1.5 py-0.5 text-[10px] font-medium text-lime-300"
+                        className="rounded-full bg-lime-500/20 px-1.5 py-0.5 text-[10px] font-medium text-lime-700"
                       >
                         号码更集中
                       </span>
@@ -278,20 +274,20 @@ export default function PredictView({
           {result && (
             <section className="card">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <h2 className="text-base font-bold text-white">
+                <h2 className="text-base font-bold text-slate-900">
                   {result.strategy.name}
                   {result.strategy.id === "best" && (
                     <span
                       title={BEST_BADGE_TITLE}
-                      className="ml-2 rounded-full bg-emerald-500/20 px-2 py-0.5 align-middle text-[10px] font-medium text-emerald-300"
+                      className="ml-2 rounded-full bg-emerald-500/20 px-2 py-0.5 align-middle text-[10px] font-medium text-emerald-700"
                     >
-                      实测最优
+                      覆盖分配
                     </span>
                   )}
                   {result.strategy.id === "second" && (
                     <span
                       title={SECOND_BADGE_TITLE}
-                      className="ml-2 rounded-full bg-lime-500/20 px-2 py-0.5 align-middle text-[10px] font-medium text-lime-300"
+                      className="ml-2 rounded-full bg-lime-500/20 px-2 py-0.5 align-middle text-[10px] font-medium text-lime-700"
                     >
                       号码更集中
                     </span>
@@ -306,7 +302,7 @@ export default function PredictView({
                     value={count}
                     onChange={(e) => setCount(Number(e.target.value))}
                     aria-label="注数"
-                    className="rounded-lg border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-slate-200"
+                    className="rounded-lg border border-slate-300 bg-slate-100 px-2 py-1 text-sm text-slate-700"
                   >
                     {COUNT_OPTIONS.map((c) => (
                       <option key={c} value={c}>
@@ -316,13 +312,13 @@ export default function PredictView({
                   </select>
                   <button
                     onClick={() => setSeed(Math.floor(Math.random() * 2 ** 31))}
-                    className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500"
+                    className="rounded-lg bg-red-100 px-3 py-1.5 text-sm font-medium text-slate-900 hover:bg-red-500"
                   >
                     ⟳ 换一批
                   </button>
                   <CopyButton
                     label="复制全部"
-                    className="bg-slate-800 px-3 py-1.5 text-sm"
+                    className="bg-slate-100 px-3 py-1.5 text-sm"
                     text={result.combos.map(comboText).join("\n")}
                   />
                 </div>
@@ -332,14 +328,14 @@ export default function PredictView({
                 {result.combos.map((c, i) => (
                   <div
                     key={`${c.red.map((p) => p.num).join("-")}|${c.blue.map((p) => p.num).join("-")}`}
-                    className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-slate-800/70 bg-slate-900/40 px-4 py-3"
+                    className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-slate-200/70 bg-white/40 px-4 py-3"
                   >
                     <span className="w-10 text-xs text-slate-500">第 {i + 1} 注</span>
                     <PickBalls picks={c.red} zone="red" />
-                    <span className="text-slate-400">+</span>
+                    <span className="text-slate-500">+</span>
                     <PickBalls picks={c.blue} zone="blue" />
                     <span className="text-xs tabular-nums text-slate-500">
-                      和值 <span className="text-amber-300/90">{c.sum}</span> · 奇偶 {c.oddEven} · 大小{" "}
+                      和值 <span className="text-amber-700/90">{c.sum}</span> · 奇偶 {c.oddEven} · 大小{" "}
                       {c.bigSmall}
                     </span>
                     <CopyButton text={comboText(c)} className="ml-auto" />
@@ -347,7 +343,7 @@ export default function PredictView({
                 ))}
               </div>
 
-              <p className="mt-3 text-[11px] text-slate-400">
+              <p className="mt-3 text-[11px] text-slate-500">
                 悬停号码可查看该号近 30 期出现次数与当前遗漏（纯历史统计，不参与选号）。
                 {result.strategy.id === "random"
                   ? "本方案各注之间可能重复覆盖同一号码，这正是机选的浪费所在。"
@@ -370,14 +366,14 @@ export default function PredictView({
           {result && (
             <div className="grid gap-4 lg:grid-cols-2">
               <section className="card">
-                <h3 className="mb-2 text-sm font-semibold text-white">方案思路</h3>
-                <p className="text-sm leading-relaxed text-slate-400">{result.strategy.description}</p>
+                <h3 className="mb-2 text-sm font-semibold text-slate-900">方案思路</h3>
+                <p className="text-sm leading-relaxed text-slate-500">{result.strategy.description}</p>
 
-                <h4 className="mb-2 mt-4 text-sm font-semibold text-white">近期形态参考</h4>
-                <ul className="flex flex-col gap-1.5 text-xs text-slate-400">
+                <h4 className="mb-2 mt-4 text-sm font-semibold text-slate-900">近期形态参考</h4>
+                <ul className="flex flex-col gap-1.5 text-xs text-slate-500">
                   <li>
                     推荐组合和值区间：
-                    <span className="text-amber-300/90">
+                    <span className="text-amber-700/90">
                       {result.analysis.sumRange[0]} ~ {result.analysis.sumRange[1]}
                     </span>
                     （近 100 期和值均值 ± 1.2σ）
@@ -385,7 +381,7 @@ export default function PredictView({
                   <li>
                     近 30 期奇偶比高频形态：
                     {result.analysis.oddEvenDist.slice(0, 3).map(([k, v]) => (
-                      <span key={k} className="ml-1.5 rounded bg-slate-800 px-1.5 py-0.5 tabular-nums">
+                      <span key={k} className="ml-1.5 rounded bg-slate-100 px-1.5 py-0.5 tabular-nums">
                         {k}（{v}期）
                       </span>
                     ))}
@@ -393,7 +389,7 @@ export default function PredictView({
                   <li className="flex flex-wrap items-center gap-1.5">
                     近 30 期热号（仅统计参考，不参与选号）：
                     {result.analysis.hotTop.map((h) => (
-                      <span key={h.num} className="rounded bg-red-500/15 px-1.5 py-0.5 text-red-300 tabular-nums">
+                      <span key={h.num} className="rounded bg-red-500/15 px-1.5 py-0.5 text-red-700 tabular-nums">
                         {String(h.num).padStart(2, "0")}·{h.count}次
                       </span>
                     ))}
@@ -401,7 +397,7 @@ export default function PredictView({
                   <li className="flex flex-wrap items-center gap-1.5">
                     当前遗漏最深（仅统计参考，不参与选号）：
                     {result.analysis.coldTop.map((h) => (
-                      <span key={h.num} className="rounded bg-slate-700/50 px-1.5 py-0.5 text-slate-300 tabular-nums">
+                      <span key={h.num} className="rounded bg-slate-200/50 px-1.5 py-0.5 text-slate-600 tabular-nums">
                         {String(h.num).padStart(2, "0")}·遗漏{h.omission}期
                       </span>
                     ))}
@@ -410,35 +406,35 @@ export default function PredictView({
               </section>
 
               <section className="card">
-                <h3 className="mb-2 text-sm font-semibold text-white">
+                <h3 className="mb-2 text-sm font-semibold text-slate-900">
                   本方案历史回测
                   <span className="ml-2 text-xs font-normal text-slate-500">
                     最近 {result.analysis.backtest.draws} 期 · {result.analysis.backtest.tickets} 注 · 每期用此前数据选号
                   </span>
                 </h3>
                 <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-                  <div className="rounded-xl bg-slate-800/50 p-3 text-center">
-                    <div className="text-lg font-bold tabular-nums text-white">
+                  <div className="rounded-xl bg-slate-100/50 p-3 text-center">
+                    <div className="text-lg font-bold tabular-nums text-slate-900">
                       {result.analysis.backtest.avgHits.toFixed(3)}
                     </div>
                     <div className="mt-1 text-[11px] text-slate-500">平均每期命中</div>
                   </div>
-                  <div className="rounded-xl bg-slate-800/50 p-3 text-center">
-                    <div className="text-lg font-bold tabular-nums text-amber-300">
+                  <div className="rounded-xl bg-slate-100/50 p-3 text-center">
+                    <div className="text-lg font-bold tabular-nums text-amber-700">
                       {result.analysis.backtest.expectation.toFixed(3)}
                     </div>
                     <div className="mt-1 text-[11px] text-slate-500">随机期望命中</div>
                   </div>
-                  <div className="rounded-xl bg-slate-800/50 p-3 text-center">
-                    <div className="text-lg font-bold tabular-nums text-white">
+                  <div className="rounded-xl bg-slate-100/50 p-3 text-center">
+                    <div className="text-lg font-bold tabular-nums text-slate-900">
                       {(result.analysis.backtest.zeroAllRate * 100).toFixed(0)}%
                     </div>
                     <div className="mt-1 text-[11px] text-slate-500" title="该批全部注都没命中任何号码的期数占比">
                       全注落空占比
                     </div>
                   </div>
-                  <div className="rounded-xl bg-slate-800/50 p-3 text-center">
-                    <div className="text-lg font-bold tabular-nums text-white">
+                  <div className="rounded-xl bg-slate-100/50 p-3 text-center">
+                    <div className="text-lg font-bold tabular-nums text-slate-900">
                       {result.analysis.backtest.bestHits}
                     </div>
                     <div className="mt-1 text-[11px] text-slate-500">最佳单期命中</div>
@@ -459,14 +455,14 @@ export default function PredictView({
           {/* 方案对比 */}
           {comparison.length > 0 && (
             <section className="card">
-              <h3 className="mb-1 text-sm font-semibold text-white">
+              <h3 className="mb-1 text-sm font-semibold text-slate-900">
                 三方案回测对比（{cfg.name}）
                 <span className="ml-2 text-xs font-normal text-slate-500">
                   最近 {comparison[0].draws} 期 · {comparison[0].tickets} 注 · 平均命中按注数平均
                 </span>
               </h3>
               <EChart option={comparisonChart} height={200} ariaLabel="三种方案的单注平均命中对比条形图，附随机期望与噪声带" />
-              <p className="mb-2 text-[11px] leading-relaxed text-slate-400">
+              <p className="mb-2 text-[11px] leading-relaxed text-slate-500">
                 黄色带＝随机期望 ±1.96 标准误（
                 {noiseBand ? `${noiseBand.lo.toFixed(3)} ~ ${noiseBand.hi.toFixed(3)}` : ""}）：只统计{" "}
                 {comparison[0].draws} 期时，仅凭随机波动就会出现这么大范围的高低差，落在带内说明差异不超出噪声。
@@ -492,8 +488,8 @@ export default function PredictView({
                       return (
                         <tr
                           key={b.strategy}
-                          className={`border-t border-slate-800/60 ${
-                            isCurrent ? "text-emerald-300" : "text-slate-300"
+                          className={`border-t border-slate-200/60 ${
+                            isCurrent ? "text-emerald-700" : "text-slate-600"
                           }`}
                         >
                           <td className="py-2 text-left">
@@ -509,7 +505,7 @@ export default function PredictView({
                         </tr>
                       );
                     })}
-                    <tr className="border-t border-slate-800/60 text-slate-500">
+                    <tr className="border-t border-slate-200/60 text-slate-500">
                       <td className="py-2 text-left">随机期望（单注）</td>
                       <td className="py-2">{comparison[0].expectation.toFixed(3)}</td>
                       <td className="py-2" colSpan={5}>
@@ -530,7 +526,7 @@ export default function PredictView({
                   </tbody>
                 </table>
               </div>
-              <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
+              <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
                 注意「平均命中」一列：三个方案与机选同水平（都在噪声带内）；差异出现在「至少中奖」一列，
                 也就是同价位铺开更多不同号码带来的覆盖收益。
               </p>

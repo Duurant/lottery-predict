@@ -46,7 +46,7 @@ export default function GameSwitch({
 }) {
   const cls = (on: boolean) =>
     `rounded-xl px-5 py-2 text-sm font-medium transition-colors ${
-      on ? "bg-violet-600 text-white shadow" : "bg-slate-900 text-slate-400 hover:text-white"
+      on ? "bg-violet-100 text-slate-900 shadow" : "bg-white text-slate-500 hover:text-slate-900"
     }`;
 
   return (

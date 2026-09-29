@@ -10,23 +10,23 @@ export default function LatestDrawCard({ game, data }: { game: GameKey; data: Ga
   return (
     <div className="card flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-bold text-white">{cfg.name}</h3>
-        <span className="rounded-full bg-slate-800 px-2.5 py-0.5 text-xs text-slate-400">
+        <h3 className="text-lg font-bold text-slate-900">{cfg.name}</h3>
+        <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-500">
           每周{cfg.drawDays.map((d) => "日一二三四五六"[d]).join("、")} {cfg.drawTime}
         </span>
       </div>
 
       {latest ? (
         <>
-          <p className="text-sm text-slate-400">
-            第 <span className="font-semibold text-slate-200">{latest.code}</span> 期
+          <p className="text-sm text-slate-500">
+            第 <span className="font-semibold text-slate-700">{latest.code}</span> 期
             <span className="ml-2 tabular-nums">{latest.date}</span>
           </p>
           <div className="flex flex-wrap items-center gap-2">
             {latest.red.map((n) => (
               <Ball key={`r${n}`} n={n} zone="red" size="lg" />
             ))}
-            <span className="mx-1 text-slate-400">+</span>
+            <span className="mx-1 text-slate-500">+</span>
             {latest.blue.map((n) => (
               <Ball key={`b${n}`} n={n} zone="blue" size="lg" />
             ))}
@@ -35,7 +35,7 @@ export default function LatestDrawCard({ game, data }: { game: GameKey; data: Ga
             <CountdownTimer drawDays={cfg.drawDays} drawTime={cfg.drawTime} />
             <Link
               href={`/${game}`}
-              className="text-sm text-red-400 hover:text-red-300"
+              className="text-sm text-red-600 hover:text-red-700"
             >
               走势分析 →
             </Link>

@@ -74,8 +74,8 @@ export default function DigitPredictView({
   return (
     <div className="flex flex-col gap-5">
       <section className="pt-2 text-center">
-        <h1 className="text-2xl font-bold text-white">号码方案 · 排列五</h1>
-        <p className="mx-auto mt-2 max-w-2xl text-sm text-slate-400">
+        <h1 className="text-2xl font-bold text-slate-900">号码方案 · 排列五</h1>
+        <p className="mx-auto mt-2 max-w-2xl text-sm text-slate-500">
           排列五只有一个奖级（5 位全中），每位 0-9 独立均匀，单注中奖概率固定为 1/100000。
           因此这里没有「更准」的方案——三个方案的中奖概率完全相同，区别只在号码构成与是否重复。
         </p>
@@ -102,20 +102,20 @@ export default function DigitPredictView({
                       ? isBest
                         ? "border-violet-400/70 bg-violet-500/10"
                         : "border-slate-500/60 bg-slate-500/10"
-                      : "border-slate-800 bg-slate-900/60 hover:border-slate-600"
+                      : "border-slate-200 bg-white/60 hover:border-slate-300"
                   }`}
                 >
                   <div className="flex items-center gap-1.5">
-                    <span className={`text-sm font-semibold ${active ? (isBest ? "text-violet-300" : "text-slate-200") : "text-white"}`}>
+                    <span className={`text-sm font-semibold ${active ? (isBest ? "text-violet-700" : "text-slate-700") : "text-slate-900"}`}>
                       {s.name}
                     </span>
                     {isBest && (
-                      <span className="rounded-full bg-violet-500/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-300">
+                      <span className="rounded-full bg-violet-500/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-700">
                         唯一真实优化
                       </span>
                     )}
                     {s.id === "second" && (
-                      <span className="rounded-full bg-slate-600/30 px-1.5 py-0.5 text-[10px] font-medium text-slate-300">
+                      <span className="rounded-full bg-slate-600/30 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
                         不改变概率
                       </span>
                     )}
@@ -130,7 +130,7 @@ export default function DigitPredictView({
           {result && (
             <section className="card">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <h2 className="text-base font-bold text-white">
+                <h2 className="text-base font-bold text-slate-900">
                   {result.strategy.name}
                   <span className="ml-2 text-xs font-normal text-slate-500">
                     基于 {draws.length} 期历史 · {count} 注互不重复
@@ -141,7 +141,7 @@ export default function DigitPredictView({
                   <select
                     value={count}
                     onChange={(e) => setCount(Number(e.target.value))}
-                    className="rounded-lg border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-slate-200"
+                    className="rounded-lg border border-slate-300 bg-slate-100 px-2 py-1 text-sm text-slate-700"
                   >
                     {COUNT_OPTIONS.map((c) => (
                       <option key={c} value={c}>
@@ -151,13 +151,13 @@ export default function DigitPredictView({
                   </select>
                   <button
                     onClick={() => setSeed(Math.floor(Math.random() * 2 ** 31))}
-                    className="rounded-lg bg-violet-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-violet-500"
+                    className="rounded-lg bg-violet-100 px-3 py-1.5 text-sm font-medium text-slate-900 hover:bg-violet-500"
                   >
                     ⟳ 换一批
                   </button>
                   <CopyButton
                     label="复制全部"
-                    className="bg-slate-800 px-3 py-1.5 text-sm"
+                    className="bg-slate-100 px-3 py-1.5 text-sm"
                     text={result.tickets.map(digitText).join("\n")}
                   />
                 </div>
@@ -167,7 +167,7 @@ export default function DigitPredictView({
                 {result.tickets.map((t, i) => (
                   <div
                     key={t.join("")}
-                    className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-slate-800/70 bg-slate-900/40 px-4 py-2.5"
+                    className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-slate-200/70 bg-white/40 px-4 py-2.5"
                   >
                     <span className="w-10 text-xs text-slate-500">第 {i + 1} 注</span>
                     <div className="flex items-center gap-1.5">
@@ -176,8 +176,8 @@ export default function DigitPredictView({
                       ))}
                     </div>
                     <span className="text-xs tabular-nums text-slate-500">
-                      号码 <span className="text-violet-300">{digitText(t)}</span> · 和值{" "}
-                      <span className="text-amber-300/90">{t.reduce((a, b) => a + b, 0)}</span>
+                      号码 <span className="text-violet-700">{digitText(t)}</span> · 和值{" "}
+                      <span className="text-amber-700/90">{t.reduce((a, b) => a + b, 0)}</span>
                     </span>
                     <CopyButton text={digitText(t)} className="ml-auto" />
                   </div>
@@ -189,7 +189,7 @@ export default function DigitPredictView({
           {/* 诚实性核心：概率同一性 */}
           {report && (
             <section className="card">
-              <h3 className="mb-1 text-sm font-semibold text-white">
+              <h3 className="mb-1 text-sm font-semibold text-slate-900">
                 三个方案的概率是一致的（这是排列五的数学事实）
                 <span className="ml-2 text-xs font-normal text-slate-500">
                   单注 {fmtProb(single)} = 1/{(cfg.digitMax + 1) ** cfg.positions}
@@ -211,12 +211,12 @@ export default function DigitPredictView({
                       <th className="py-2 text-left font-normal">方案</th>
                       <th className="py-2 font-normal">
                         每 10 万注期望中奖
-                        <span className="ml-1 text-slate-400">（注）</span>
+                        <span className="ml-1 text-slate-500">（注）</span>
                       </th>
                       <th className="py-2 font-normal">每批去重注数</th>
                       <th className="py-2 font-normal">
                         每注平均命中位数
-                        <span className="ml-1 text-slate-400">理论 {report.matchedExpectation.toFixed(3)}</span>
+                        <span className="ml-1 text-slate-500">理论 {report.matchedExpectation.toFixed(3)}</span>
                       </th>
                       <th className="py-2 font-normal">实测中奖期数</th>
                     </tr>
@@ -230,8 +230,8 @@ export default function DigitPredictView({
                       return (
                         <tr
                           key={r.id}
-                          className={`border-t border-slate-800/60 ${
-                            isCurrent ? "text-violet-300" : "text-slate-300"
+                          className={`border-t border-slate-200/60 ${
+                            isCurrent ? "text-violet-700" : "text-slate-600"
                           }`}
                         >
                           <td className="py-2 text-left">
@@ -251,7 +251,7 @@ export default function DigitPredictView({
                         </tr>
                       );
                     })}
-                    <tr className="border-t border-slate-800/60 text-slate-500">
+                    <tr className="border-t border-slate-200/60 text-slate-500">
                       <td className="py-2 text-left">机选解析参考</td>
                       <td className="py-2">{(report.prob.random * 1e5).toFixed(6)}</td>
                       <td className="py-2" colSpan={3}>
@@ -275,7 +275,7 @@ export default function DigitPredictView({
                 {((1 - Math.exp((-report.tickets * (report.tickets - 1)) / 2 / 1e5)) * report.draws).toFixed(2)} 期），
                 所以「每批去重注数」一列两者都显示 {report.tickets.toFixed(3)} 属正常——测量精度不足以呈现这个差异，
                 要看解析值那一列。
-                <span className="text-slate-400">
+                <span className="text-slate-500">
                   {" "}
                   结论：去重是唯一真实优化，而它提高的是「不浪费注数」，不是「更可能中」。
                 </span>
@@ -286,22 +286,22 @@ export default function DigitPredictView({
           {/* 方案说明 */}
           {result && (
             <section className="card">
-              <h3 className="mb-2 text-sm font-semibold text-white">方案思路</h3>
-              <p className="text-sm leading-relaxed text-slate-400">{result.strategy.description}</p>
-              <h4 className="mb-2 mt-4 text-sm font-semibold text-white">近期形态参考</h4>
-              <ul className="flex flex-col gap-1.5 text-xs text-slate-400">
+              <h3 className="mb-2 text-sm font-semibold text-slate-900">方案思路</h3>
+              <p className="text-sm leading-relaxed text-slate-500">{result.strategy.description}</p>
+              <h4 className="mb-2 mt-4 text-sm font-semibold text-slate-900">近期形态参考</h4>
+              <ul className="flex flex-col gap-1.5 text-xs text-slate-500">
                 <li>
                   近 100 期和值均值：
-                  <span className="text-amber-300/90">{result.analysis.avgSum.toFixed(1)}</span>
+                  <span className="text-amber-700/90">{result.analysis.avgSum.toFixed(1)}</span>
                   （理论 {(cfg.positions * cfg.digitMax) / 2}）
                 </li>
                 <li>
                   近 100 期含重复数字的期数占比：
-                  <span className="text-slate-300">{(result.analysis.repeatRate * 100).toFixed(1)}%</span>
+                  <span className="text-slate-600">{(result.analysis.repeatRate * 100).toFixed(1)}%</span>
                   （五位全不同的理论概率 30.24%）
                 </li>
               </ul>
-              <p className="mt-3 text-[11px] leading-relaxed text-slate-400">
+              <p className="mt-3 text-[11px] leading-relaxed text-slate-500">
                 以上仅是历史统计描述，不参与选号，也不代表下期倾向。
               </p>
             </section>

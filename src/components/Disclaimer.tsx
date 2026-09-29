@@ -2,7 +2,7 @@
 export default function Disclaimer({ compact = false }: { compact?: boolean }) {
   return (
     <div
-      className={`rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-200/90 ${
+      className={`rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-800/90 ${
         compact ? "px-3 py-2 text-xs" : "px-4 py-3 text-sm"
       }`}
     >

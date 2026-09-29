@@ -1,60 +1,145 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans:
-    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC",
-    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
 }
-
-:root {
-  color-scheme: dark;
-}
-
-html {
-  scroll-behavior: smooth;
-}
-
-body {
-  @apply bg-slate-950 text-slate-200 antialiased;
-  background-image:
-    radial-gradient(60rem 30rem at 80% -10%, rgba(220, 38, 38, 0.08), transparent),
-    radial-gradient(50rem 25rem at 10% -10%, rgba(59, 130, 246, 0.07), transparent);
-}
-
-/* 细滚动条 */
-::-webkit-scrollbar {
-  height: 8px;
-  width: 8px;
-}
-::-webkit-scrollbar-thumb {
-  @apply rounded-full bg-slate-700;
-}
-::-webkit-scrollbar-track {
-  @apply bg-transparent;
-}
-
-/* 球号 */
-.ball {
-  @apply inline-flex shrink-0 items-center justify-center rounded-full font-bold text-white select-none;
-  box-shadow:
-    inset 0 -2px 4px rgb(0 0 0 / 0.25),
-    0 2px 6px rgb(0 0 0 / 0.35);
-}
-.ball-red {
-  background: linear-gradient(145deg, #f87171 0%, #dc2626 55%, #b91c1c 100%);
-}
-.ball-blue {
-  background: linear-gradient(145deg, #60a5fa 0%, #2563eb 55%, #1d4ed8 100%);
-}
-/* 数字型玩法（排列五）：单个数字筹码，紫色系以区别于红蓝组合 */
-.ball-digit {
-  background: linear-gradient(145deg, #a78bfa 0%, #7c3aed 55%, #5b21b6 100%);
-}
-.ball-digit-hit {
-  background: linear-gradient(145deg, #fbbf24 0%, #f59e0b 55%, #b45309 100%);
-}
-
-/* 卡片 */
-.card {
-  @apply rounded-2xl border border-slate-800 bg-slate-900/60 p-5;
-}
+:root { color-scheme: light; --ink:#24352e; --muted:#717a76; --green:#286149; --line:#e4e8e3; }
+html { scroll-behavior:auto; }
+body { margin:0; background:#f5f6f2; color:var(--ink); -webkit-font-smoothing:antialiased; }
+button, summary, select { cursor:pointer; }
+button, a, input, textarea, select { -webkit-tap-highlight-color:transparent; }
+button:disabled { cursor:default; opacity:.5; }
+:focus-visible { outline:3px solid #93bdaa; outline-offset:4px; }
+button, a { transition:background-color .16s, color .16s, border-color .16s; }
+::selection { background:#d6e9dd; }
+::-webkit-scrollbar { height:7px; width:7px; }
+::-webkit-scrollbar-thumb { background:#cbd4cb; border-radius:12px; }
+.ball { @apply inline-flex shrink-0 items-center justify-center rounded-full font-bold text-white select-none; font-variant-numeric:tabular-nums; }
+.ball-red { background:#d85152; }
+.ball-blue { background:#507cba; }
+.ball-digit { background:#8063b8; }
+.ball-digit-hit { background:#a36c24; }
+.card { @apply rounded-2xl border border-slate-200 bg-white p-5; }
+.site-header { background:#fffffff2; border-bottom:1px solid var(--line); }
+.site-nav { max-width:1280px; padding:20px 32px; margin:auto; display:flex; align-items:center; justify-content:space-between; gap:32px; }
+.brand { display:flex; align-items:center; gap:12px; font-size:20px; font-weight:750; letter-spacing:1px; }
+.brand-mark { display:grid; place-items:center; width:42px; height:42px; border-radius:13px; background:var(--green); color:white; font-size:21px; }
+.brand small { display:block; font-size:10px; font-weight:400; color:var(--muted); letter-spacing:2px; margin-top:3px; }
+.nav-links { display:flex; gap:8px; font-size:14px; }
+.nav-links a { padding:9px 16px; border-radius:9px; color:#647069; }
+.nav-links a:hover,.nav-links a.selected { background:#edf3ed; color:var(--green); }
+.nav-note { font-size:12px; color:#828b83; }
+.lottery-workspace { display:flex; flex-direction:column; gap:25px; padding:12px 0 24px; }
+.workspace-heading { display:flex; justify-content:space-between; align-items:center; gap:20px; padding:4px 0 7px; }
+.eyebrow { color:#7d897e; font-size:11px; letter-spacing:1.3px; display:block; margin-bottom:9px; }
+.workspace-heading h1 { font-size:32px; line-height:1.4; font-weight:700; letter-spacing:-1px; margin:0 0 10px; }
+.workspace-heading p { color:var(--muted); font-size:14px; }
+.local-badge { font-size:11px; color:#748374; display:flex; align-items:center; gap:8px; white-space:nowrap; }
+.local-badge>span { width:6px; height:6px; background:#6d977e; border-radius:50%; }
+.workspace-toolbar { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:0 0 4px; }
+.game-tabs { display:flex; gap:7px; background:#e9ece5; padding:5px; border-radius:12px; }
+.game-tabs button { padding:10px 25px; border-radius:8px; color:#6a736d; font-size:14px; }
+.game-tabs button.active { background:white; color:var(--green); box-shadow:0 2px 5px #263a2810; font-weight:650; }
+.view-tabs { display:flex; gap:20px; font-size:13px; }
+.view-tabs button { padding:10px 2px; border-bottom:2px solid transparent; color:#849087; }
+.view-tabs button.active { color:var(--green); border-color:var(--green); }
+.surface { background:white; border:1px solid var(--line); border-radius:18px; padding:26px; }
+.recommend-layout { display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:24px; align-items:start; }
+.recommend-primary,.workspace-sidebar { display:flex; flex-direction:column; gap:24px; min-width:0; }
+.main-recommendation { border-top:3px solid #42775b; }
+.section-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.lottery-workspace h2 { font-size:20px; line-height:1.5; font-weight:650; margin:0; }
+.lottery-workspace h3 { font-size:16px; font-weight:650; }
+.source-tag { display:inline-flex; align-items:center; padding:3px 8px; border-radius:5px; background:#eaf2eb; color:#55765c; font-size:10px; font-weight:500; vertical-align:middle; margin-left:7px; }
+.quiet-badge { background:#f4f5f1; color:#7d8679; border:1px solid #e7eae1; font-size:11px; border-radius:6px; padding:5px 9px; white-space:nowrap; }
+.period-label { font-size:12px; color:#7a837b; margin:13px 0 21px; }
+.period-label>span { color:#8b958d; }
+.ticket-row { display:flex; align-items:center; gap:17px; padding:15px 0; border-top:1px solid #f0f2ed; }
+.ticket-index { color:#a6aea6; font-size:11px; font-variant-numeric:tabular-nums; }
+.ticket-content { flex:1; min-width:0; }
+.ticket-numbers { display:flex; align-items:center; flex-wrap:wrap; gap:9px; }
+.number-chip { display:inline-flex; position:relative; justify-content:center; align-items:center; width:40px; height:40px; border-radius:50%; font-size:18px; font-weight:650; font-variant-numeric:tabular-nums; border:1px solid transparent; flex-shrink:0; }
+.number-red { background:#fcf0ee; color:#cb514d; border-color:#f8e4e1; }
+.number-blue { background:#edf3fc; color:#517bb1; border-color:#e0eafa; }
+.number-purple { background:#f2eef9; color:#7b61a2; border-color:#e9e0f4; }
+.number-plus { color:#b7beb9; font-size:13px; margin:0 2px; }
+.number-small { width:28px; height:28px; font-size:12px; }
+.number-hit { box-shadow:0 0 0 2px #327651; }
+.number-miss { background:#f4f5f3; color:#818981; border-color:#e8ebe6; }
+.hit-mark { position:absolute; bottom:-6px; right:-4px; font-size:9px; background:#327651; color:white; border-radius:20px; width:14px; height:14px; text-align:center; }
+.ticket-shape { display:block; font-size:10px; color:#939c95; margin-top:7px; letter-spacing:.2px; }
+.recommend-footer { margin-top:18px; display:flex; align-items:center; gap:20px; justify-content:space-between; }
+.recommend-footer>button { flex-shrink:0; background:var(--green); color:white; padding:11px 16px; border-radius:9px; font-size:13px; }
+.reason-box { background:#f5f7f2; border-radius:10px; padding:12px 15px; font-size:12px; color:#77816f; line-height:1.85; }
+.reason-box strong { color:#516148; font-size:12px; }
+.method-details { font-size:12px; color:#7a877c; border-top:1px solid #edf0e9; padding-top:16px; margin-top:21px; line-height:1.9; }
+.method-details summary { width:fit-content; color:#68796a; }
+.method-details p { margin:12px 0; }
+.method-details a,.research-note a { color:var(--green); font-weight:600; }
+.latest-panel { padding:23px; }
+.latest-panel h2 { font-size:16px; }
+.latest-panel .ticket-numbers { gap:5px; margin-top:20px; }
+.latest-panel .number-small { width:24px; height:24px; font-size:11px; }
+.status-dot { color:#6e927b; font-size:10px; white-space:nowrap; }
+.muted { color:var(--muted); font-size:12px; line-height:1.9; }
+.latest-panel>.muted { margin-top:8px; }
+.sidebar-link { display:flex; justify-content:space-between; border-top:1px solid var(--line); margin-top:21px; padding-top:16px; font-size:12px; color:#737f70; }
+.side-action { background:#edf2e9; border-color:#e3e9dc; }
+.side-icon { display:grid; place-items:center; background:#dee8d6; border-radius:9px; width:33px; height:33px; color:#5a7846; margin-bottom:17px; }
+.side-action p,.research-note p { font-size:12px; line-height:1.95; color:#7a8474; margin:10px 0 18px; }
+.btn-primary { background:var(--green); color:white; border:1px solid var(--green); border-radius:9px; padding:10px 17px; font-size:13px; }
+.btn-primary:hover { background:#1b4935; }
+.btn-secondary { background:white; color:#536950; border:1px solid #dce3d7; border-radius:9px; padding:9px 15px; font-size:12px; }
+.btn-secondary:hover { background:#f0f5ec; }
+.research-note { padding:8px 22px; }
+.research-note a { font-size:12px; }
+.personal-tag { background:#f2eef8; color:#88749f; }
+.personal-panel { background:linear-gradient(135deg,#fff 60%,#faf8fc); }
+.personal-empty { text-align:center; padding:25px 10px 18px; }
+.personal-symbol { display:grid; place-items:center; margin:0 auto 12px; width:42px; height:42px; border-radius:15px; background:#f0edf6; color:#9c89b5; font-size:24px; }
+.personal-empty h3 { color:#6a626f; }
+.personal-empty p { margin:10px 0 19px; font-size:12px; color:#99919d; line-height:1.9; }
+.personal-explanation { margin:16px 0; color:#8b7d97; font-size:12px; line-height:1.9; }
+.fine-print { font-size:11px; color:#8e968c; line-height:1.9; margin-top:20px; }
+.backup-panel>.muted { margin-top:10px; }
+.backup-placeholder { font-size:12px; color:#9aa297; padding:20px 0 0; }
+.backup-grid { margin-top:20px; display:grid; grid-template-columns:1fr 1fr; column-gap:32px; }
+.backup-grid .ticket-row { flex-wrap:wrap; gap:10px; }
+.backup-grid .number-chip { width:32px; height:32px; font-size:14px; }
+.backup-grid .ticket-numbers { gap:6px; }
+.ticket-actions { display:flex; gap:12px; width:100%; justify-content:flex-end; }
+.like-button { padding:4px 10px; border:1px solid #e8e5eb; border-radius:6px; font-size:11px; color:#8a8093; }
+.like-button.is-liked { background:#f4edf7; color:#9b649b; border-color:#dac3df; }
+.text-button { color:#5b7e63; font-size:12px; padding:4px 0; }
+.danger { color:#b36a61; }
+.form-message { color:#567458; font-size:12px; background:#edf4e9; padding:10px 13px; border-radius:8px; margin-top:13px; }
+.alert { background:#fff5df; border:1px solid #eee0b8; border-radius:10px; padding:14px 18px; font-size:12px; line-height:1.8; color:#977132; }
+.preference-row { display:flex; justify-content:space-between; gap:10px; font-variant-numeric:tabular-nums; border-bottom:1px solid var(--line); padding:8px 0; }
+.records-layout { display:grid; grid-template-columns:340px minmax(0,1fr); align-items:start; gap:25px; }
+.input-panel form { margin-top:20px; }
+.input-panel label { display:block; font-size:12px; margin:16px 0 8px; }
+.input-panel input,.input-panel textarea { width:100%; border:1px solid #dce3d7; border-radius:8px; padding:12px; font-size:12px; background:#fcfdfb; }
+.input-panel textarea { line-height:2; font-variant-numeric:tabular-nums; resize:vertical; }
+.button-row { display:flex; gap:12px; align-items:center; }
+form .button-row { margin-top:20px; }
+.records-list { min-width:0; }
+.records-list select { font-size:12px; border:1px solid var(--line); border-radius:8px; padding:8px; background:white; }
+.record-hint { margin:10px 0 18px; }
+.count-label { color:#a3ad9e; font-size:14px; margin-left:7px; }
+.empty-state { text-align:center; padding:50px 20px; color:#8b9686; font-size:13px; }
+.empty-state p { margin-top:12px; }
+.saved-record { margin-bottom:14px; padding:20px; }
+.saved-record .source-tag { margin-left:0; }
+.source-purchase { background:#f8f0e5; color:#a77d3e; }
+.record-period { font-size:11px; color:#858e80; margin-left:10px; }
+.pending-state { color:#9a8b59; font-size:11px; padding-top:14px; }
+.saved-ticket { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; padding:14px 0; border-bottom:1px solid #f0f2ed; }
+.check-result { font-size:11px; text-align:right; }
+.check-result strong { display:block; font-weight:500; color:#6c7d68; }
+.check-result span { color:#a0aa99; display:block; margin-top:4px; }
+.record-details { font-size:11px; color:#919c8a; margin-top:13px; line-height:1.9; }
+.record-details p { margin-top:8px; }
+@media (min-width:1280px) { main { max-width:1280px !important; padding:28px 32px !important; } }
+@media (max-width:1023px) { .recommend-layout { grid-template-columns:minmax(0,1fr) 260px; gap:16px; } .surface { padding:20px; } .records-layout { grid-template-columns:290px minmax(0,1fr); gap:16px; } .recommend-footer { align-items:stretch; flex-direction:column; } .ticket-numbers { gap:6px; } .number-chip { width:35px; height:35px; font-size:16px; } .number-small { width:26px; height:26px; font-size:12px; } .nav-note { display:none; } }
+@media (max-width:767px) { .site-nav { padding:15px 16px; flex-wrap:wrap; gap:14px; } .brand { font-size:17px; } .brand-mark { width:35px; height:35px; } .nav-links { width:100%; justify-content:space-between; gap:0; } .nav-links a { font-size:12px; padding:7px 12px; } .workspace-heading h1 { font-size:25px; } .workspace-heading { align-items:start; } .local-badge { display:none; } .workspace-toolbar { align-items:stretch; flex-direction:column; gap:10px; } .game-tabs { width:100%; } .game-tabs button { flex:1; padding:10px 8px; font-size:13px; } .view-tabs { justify-content:flex-end; } .recommend-layout,.records-layout { grid-template-columns:1fr; } .workspace-sidebar { display:grid; grid-template-columns:1fr; gap:16px; } .surface { padding:18px; border-radius:14px; } .lottery-workspace h2 { font-size:18px; } .backup-grid { grid-template-columns:1fr; } .number-chip { width:32px; height:32px; font-size:15px; } .number-small { width:28px; height:28px; font-size:12px; } .ticket-row { gap:9px; } .ticket-numbers { gap:5px; } .number-plus { margin:0; } .ticket-index { font-size:10px; } .ticket-shape { font-size:9px; } .source-tag { font-size:9px; } .section-heading { gap:8px; } .record-period { display:block; margin:8px 0 0; } }
+@media (prefers-reduced-motion:reduce) { html { scroll-behavior:auto; } * { transition:none !important; } }

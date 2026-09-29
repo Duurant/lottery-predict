@@ -2,6 +2,27 @@ import type { Draw } from "./games";
 
 export type Zone = "red" | "blue";
 
+/** 组合形态：连号按相邻号码对计数，三连号计为两对。 */
+export function ticketShape(nums: number[]) {
+  const sorted = [...nums].sort((a, b) => a - b);
+  return {
+    sum: nums.reduce((a, b) => a + b, 0),
+    odd: nums.filter((n) => n % 2 === 1).length,
+    consecutive: sorted.slice(1).filter((n, i) => n === sorted[i] + 1).length,
+  };
+}
+
+/** 只读取开奖前的数据；三个形态等权平滑，分数仅表示历史形态相似度。 */
+export function shapeScorer(draws: Draw[], before: number, window = 100): (nums: number[]) => number {
+  const history = draws.slice(Math.max(0, before - window), before).map((d) => ticketShape(d.red));
+  const count = (key: "odd" | "consecutive" | "sum", value: number) =>
+    history.filter((s) => key === "sum" ? Math.abs(s.sum - value) <= 10 : s[key] === value).length;
+  return (nums) => {
+    const s = ticketShape(nums);
+    return (count("odd", s.odd) + count("consecutive", s.consecutive) + count("sum", s.sum) + 3) / (3 * (history.length + 1));
+  };
+}
+
 /** 取某区号码 */
 export function zoneNums(d: Draw, zone: Zone): number[] {
   return zone === "red" ? d.red : d.blue;

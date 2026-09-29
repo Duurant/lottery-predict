@@ -58,6 +58,20 @@ export function judgePrize(cfg: GameConfig, redHits: number, blueHits: number): 
   return 0;
 }
 
+/**
+ * 开奖核对按官方期号选择奖级。中奖条件沿用 13 种，奖级名称在不同阶段变化。
+ * 来源：https://m.lottery.gov.cn/mltsz/jsq/index.html
+ * 2019 年第 19019 期改为九级；2026 年第 26014 期改为七级。
+ * 双色球福运奖依赖当期特别规定，基础号码数据不含开关，由核对界面单独提示。
+ */
+export function judgePrizeForDraw(cfg: GameConfig, code: string, redHits: number, blueHits: number): number {
+  const tier = judgePrize(cfg, redHits, blueHits);
+  if (cfg.key !== "dlt") return tier;
+  if (code >= "26014") return [0, 1, 2, 3, 3, 4, 5, 5, 6, 7][tier];
+  if (code < "19019") return [0, 1, 2, 3, 3, 4, 4, 5, 5, 6][tier];
+  return tier;
+}
+
 /** 组合数 C(n, k)，n 较小时直接用乘除（本文件仅用于小参数） */
 function choose(n: number, k: number): number {
   if (k < 0 || k > n) return 0;

@@ -36,7 +36,7 @@ export default function DigitHistoryQuery({ draws, cfg }: { draws: DigitDraw[]; 
           }}
           placeholder="输入期号（如 26248）或日期（如 2026-09）搜索"
           aria-label="按期号或日期搜索开奖记录"
-          className="w-full max-w-xs rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-500 sm:w-64"
+          className="w-full max-w-xs rounded-lg border border-slate-300 bg-slate-100 px-3 py-1.5 text-sm text-slate-700 placeholder:text-slate-500 sm:w-64"
         />
         <span className="text-xs text-slate-500">
           {cfg.name}共收录 {draws.length} 期开奖数据
@@ -50,7 +50,7 @@ export default function DigitHistoryQuery({ draws, cfg }: { draws: DigitDraw[]; 
         <div className="flex flex-col divide-y divide-slate-800/60">
           {rows.map((d) => (
             <div key={d.code} className="flex flex-wrap items-center gap-x-4 gap-y-2 py-2.5">
-              <span className="w-20 text-xs tabular-nums text-slate-400">{d.code}</span>
+              <span className="w-20 text-xs tabular-nums text-slate-500">{d.code}</span>
               <span className="w-24 text-xs tabular-nums text-slate-500">{d.date}</span>
               <div className="flex items-center gap-1.5">
                 {d.digits.map((n, p) => (
@@ -58,7 +58,7 @@ export default function DigitHistoryQuery({ draws, cfg }: { draws: DigitDraw[]; 
                 ))}
               </div>
               <span className="ml-auto text-xs tabular-nums text-slate-500">
-                和值 <span className="text-amber-300/90">{digitSum(d)}</span> · 不同数字{" "}
+                和值 <span className="text-amber-700/90">{digitSum(d)}</span> · 不同数字{" "}
                 {new Set(d.digits).size} 个
               </span>
             </div>
@@ -71,7 +71,7 @@ export default function DigitHistoryQuery({ draws, cfg }: { draws: DigitDraw[]; 
           <button
             onClick={() => setPage(Math.max(cur - 1, 0))}
             disabled={cur === 0}
-            className="rounded-lg bg-slate-800 px-3 py-1 text-slate-300 disabled:opacity-40"
+            className="rounded-lg bg-slate-100 px-3 py-1 text-slate-600 disabled:opacity-40"
           >
             上一页
           </button>
@@ -81,7 +81,7 @@ export default function DigitHistoryQuery({ draws, cfg }: { draws: DigitDraw[]; 
           <button
             onClick={() => setPage(Math.min(cur + 1, pages - 1))}
             disabled={cur >= pages - 1}
-            className="rounded-lg bg-slate-800 px-3 py-1 text-slate-300 disabled:opacity-40"
+            className="rounded-lg bg-slate-100 px-3 py-1 text-slate-600 disabled:opacity-40"
           >
             下一页
           </button>

@@ -21,7 +21,7 @@ import {
   type DigitDraw,
   type DigitGameConfig,
 } from "./digit";
-import { hashSeed } from "./coverage";
+import { hashSeed, recommendationSeed } from "./coverage";
 import { mean, pairedDiff } from "./stat";
 import { mulberry32 } from "./stats";
 
@@ -217,7 +217,7 @@ function walkDigit(
   }
   for (let k = 0; k < n; k++) {
     const i = from + k;
-    const rand = mulberry32(hashSeed(cfg.key, "digit", id, draws[i].code));
+    const rand = mulberry32(recommendationSeed(cfg.key, draws[i - 1]?.code ?? "empty", draws[i - 1]?.date ?? ""));
     const weights = counts ? counts.map(weightsFromCounts) : undefined;
     const batch = pickDigitBatch(cfg, draws, i, id, tickets, rand, weights);
     const s = scoreBatch(cfg, batch, draws[i].digits);
@@ -347,6 +347,12 @@ export interface DigitStrategyResult {
   };
 }
 
+/** 取号专用入口，不附带历史回测；与回测共用 pickDigitBatch。 */
+export function digitRecommendation(cfg: DigitGameConfig, draws: DigitDraw[], count = 5, salt = 0): number[][] {
+  const rand = mulberry32(recommendationSeed(cfg.key, draws.at(-1)?.code ?? "empty", draws.at(-1)?.date ?? "", salt));
+  return pickDigitBatch(cfg, draws, draws.length, "best", count, rand);
+}
+
 export function runDigitStrategy(
   cfg: DigitGameConfig,
   draws: DigitDraw[],
@@ -356,7 +362,7 @@ export function runDigitStrategy(
 ): DigitStrategyResult {
   const def = DIGIT_STRATEGIES.find((s) => s.id === id)!;
   const i = draws.length;
-  const rand = mulberry32(hashSeed(cfg.key, "digit-page", id, seed));
+  const rand = mulberry32(recommendationSeed(cfg.key, draws.at(-1)?.code ?? "empty", draws.at(-1)?.date ?? "", seed - 1));
   const batch = pickDigitBatch(cfg, draws, i, id, tickets, rand);
 
   const recent = draws.slice(-100);

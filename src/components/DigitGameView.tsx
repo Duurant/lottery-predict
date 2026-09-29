@@ -14,7 +14,7 @@ const RANGES = [30, 50, 100] as const;
 /** 排列五的游戏页外壳：三个 tab（与组合型的 GameView 结构一致，内容换成数字型组件） */
 export default function DigitGameView({ compact }: { compact: CompactDigits }) {
   const cfg = P5_CONFIG;
-  const [tab, setTab] = useState<Tab>("走势图");
+  const [tab, setTab] = useState<Tab>("统计分析");
   const [range, setRange] = useState<number>(30);
 
   // 解码一次（按位还原，保留前导 0 与位置语义），子组件接口不变
@@ -25,14 +25,14 @@ export default function DigitGameView({ compact }: { compact: CompactDigits }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex gap-1 rounded-xl bg-slate-900 p-1">
+        <div className="flex gap-1 rounded-xl bg-white p-1">
           {TABS.map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
               aria-pressed={tab === t}
               className={`rounded-lg px-4 py-1.5 text-sm transition-colors ${
-                tab === t ? "bg-slate-700 font-medium text-white" : "text-slate-400 hover:text-white"
+                tab === t ? "bg-slate-200 font-medium text-slate-900" : "text-slate-500 hover:text-slate-900"
               }`}
             >
               {t}
@@ -49,7 +49,7 @@ export default function DigitGameView({ compact }: { compact: CompactDigits }) {
                 onClick={() => setRange(r)}
                 aria-pressed={range === r}
                 className={`rounded-lg px-2.5 py-1 text-xs transition-colors ${
-                  range === r ? "bg-slate-700 text-white" : "bg-slate-900 text-slate-400 hover:text-white"
+                  range === r ? "bg-slate-200 text-slate-900" : "bg-white text-slate-500 hover:text-slate-900"
                 }`}
               >
                 {r}

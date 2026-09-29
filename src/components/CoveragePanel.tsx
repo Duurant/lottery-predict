@@ -10,8 +10,8 @@ const pp = (x: number) => `${x >= 0 ? "+" : ""}${(x * 100).toFixed(2)}pp`;
 const pText = (p: number) => (p < 0.001 ? "<0.001" : p.toFixed(3));
 
 const SERIES_COLORS: Record<string, string> = {
-  最优方案: "#34d399",
-  次优方案: "#a3e635",
+  充分铺开: "#34d399",
+  适度铺开: "#a3e635",
   纯机选: "#64748b",
 };
 
@@ -20,7 +20,7 @@ const SERIES_COLORS: Record<string, string> = {
  * 把最优/次优与同注数的纯机选逐期配对比较。
  *
  * 刻意把两件事并列：
- *   1) 覆盖率（至少命中 k 个 / 至少中得某奖级）确实更高，并给出配对 95% CI 与 p 值；
+ *   1) 覆盖率（至少命中 k 个 / 至少中得基本奖级）确实更高，并给出配对 95% CI 与 p 值；
  *   2) 单注平均命中与机选完全同水平——收益来自「减少同批各注之间的重复」，不是预测能力。
  * 只讲第 1 点会让人误以为可以预测，只讲第 2 点又埋掉了真实存在的覆盖差异。
  */
@@ -53,14 +53,14 @@ export default function CoveragePanel({
       grid: { left: 132, right: 56, top: 30, bottom: 24 },
       legend: {
         top: 0,
-        textStyle: { color: "#94a3b8", fontSize: 11 },
+        textStyle: { color: "#64748b", fontSize: 11 },
         data: [...strategyNames, "机选噪声带"],
       },
       tooltip: {
         trigger: "axis" as const,
-        backgroundColor: "rgba(15,23,42,0.95)",
-        borderColor: "#334155",
-        textStyle: { color: "#e2e8f0", fontSize: 12 },
+        backgroundColor: "rgba(255,255,255,0.98)",
+        borderColor: "#cbd5e1",
+        textStyle: { color: "#334155", fontSize: 12 },
         // trigger: "axis" 时 formatter 收到的是参数数组，必须按数组处理
         formatter: (ps: { seriesName: string; name: string; value: number }[]) => {
           const p = ps[0];
@@ -73,21 +73,21 @@ export default function CoveragePanel({
       xAxis: {
         type: "value",
         max: Math.ceil(max * 105) / 100,
-        axisLabel: { color: "#94a3b8", fontSize: 10, formatter: (v: number) => `${Math.round(v * 100)}%` },
-        splitLine: { lineStyle: { color: "#1e293b" } },
+        axisLabel: { color: "#64748b", fontSize: 10, formatter: (v: number) => `${Math.round(v * 100)}%` },
+        splitLine: { lineStyle: { color: "#e2e8f0" } },
       },
       yAxis: {
         type: "category",
         data: rows.map((m) => m.label),
-        axisLabel: { color: "#94a3b8", fontSize: 11 },
-        axisLine: { lineStyle: { color: "#334155" } },
+        axisLabel: { color: "#64748b", fontSize: 11 },
+        axisLine: { lineStyle: { color: "#cbd5e1" } },
       },
       series: [
         ...strategyNames.map((name, idx) => ({
           name,
           type: "bar" as const,
           barWidth: 11,
-          itemStyle: { color: SERIES_COLORS[name] ?? "#94a3b8", borderRadius: [0, 3, 3, 0] as [number, number, number, number] },
+          itemStyle: { color: SERIES_COLORS[name] ?? "#64748b", borderRadius: [0, 3, 3, 0] as [number, number, number, number] },
           data: rows.map((m) => {
             const cell = m.byStrategy.find((s) => s.name === name);
             return Math.round((cell?.cell.rate ?? 0) * 10000) / 10000;
@@ -117,7 +117,7 @@ export default function CoveragePanel({
 
   return (
     <section className="card">
-      <h3 className="mb-1 text-sm font-semibold text-white">
+      <h3 className="mb-1 text-sm font-semibold text-slate-900">
         覆盖率实测：最优 / 次优 vs 纯机选
         <span className="ml-2 text-xs font-normal text-slate-500">
           全量 walk-forward · {report.draws} 期（{report.fromDate} ~ {report.toDate}）· {report.tickets} 注
@@ -151,27 +151,27 @@ export default function CoveragePanel({
           </thead>
           <tbody className="tabular-nums">
             {report.metrics.map((m) => (
-              <tr key={m.key} className="border-t border-slate-800/60">
-                <td className="py-2 text-left text-slate-400" title={m.hint}>
+              <tr key={m.key} className="border-t border-slate-200/60">
+                <td className="py-2 text-left text-slate-500" title={m.hint}>
                   {m.label}
                 </td>
                 {m.byStrategy.map((s) => (
                   <td
                     key={s.id}
-                    className={`py-2 font-semibold ${s.cell.significant ? "text-emerald-300" : "text-slate-400"}`}
+                    className={`py-2 font-semibold ${s.cell.significant ? "text-emerald-700" : "text-slate-500"}`}
                   >
                     {pct(s.cell.rate)}
                   </td>
                 ))}
-                <td className="py-2 text-slate-400">{pct(m.random)}</td>
+                <td className="py-2 text-slate-500">{pct(m.random)}</td>
                 <td className="py-2 text-slate-500">{pct(m.analytic)}</td>
                 {m.byStrategy.map((s) => (
-                  <td key={`${s.id}-d`} className={`py-2 ${s.cell.significant ? "text-emerald-300" : "text-slate-500"}`}>
+                  <td key={`${s.id}-d`} className={`py-2 ${s.cell.significant ? "text-emerald-700" : "text-slate-500"}`}>
                     <div>
                       {pp(s.cell.diff)}
-                      {s.cell.significant && <span className="ml-1 text-emerald-400">★</span>}
+                      {s.cell.significant && <span className="ml-1 text-emerald-700">★</span>}
                     </div>
-                    <div className="text-[10px] leading-tight text-slate-400">
+                    <div className="text-[10px] leading-tight text-slate-500">
                       [{pp(s.cell.ci95[0])}, {pp(s.cell.ci95[1])}] p={pText(s.cell.p)}
                     </div>
                   </td>
@@ -181,16 +181,16 @@ export default function CoveragePanel({
           </tbody>
         </table>
       </div>
-      <p className="mt-1 text-[11px] text-slate-400">
+      <p className="mt-1 text-[11px] text-slate-500">
         ★＝与机选的配对检验 p&lt;0.05。「机选解析基准」是 N 注独立随机的理论值（1−(1−p)^N），
         用于核对实测机选没有算错。
       </p>
 
       <div className="mt-3 grid gap-3 sm:grid-cols-3">
         {report.distinct.map((d) => (
-          <div key={d.id} className="rounded-xl bg-slate-800/50 p-3">
+          <div key={d.id} className="rounded-xl bg-slate-100/50 p-3">
             <div className="text-[11px] text-slate-500">平均覆盖不同号码 · {d.name}</div>
-            <div className="mt-1 text-sm font-semibold tabular-nums text-white">
+            <div className="mt-1 text-sm font-semibold tabular-nums text-slate-900">
               {d.red.toFixed(1)}
               <span className="text-xs font-normal text-slate-500">
                 {" "}
@@ -201,9 +201,9 @@ export default function CoveragePanel({
         ))}
       </div>
 
-      <div className="mt-3 rounded-xl bg-slate-800/50 p-3">
+      <div className="mt-3 rounded-xl bg-slate-100/50 p-3">
         <div className="text-[11px] text-slate-500">单注平均命中（诚实性对照：应与人选机选无显著差异）</div>
-        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold tabular-nums text-white">
+        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold tabular-nums text-slate-900">
           {report.honesty.byStrategy.map((h) => (
             <span key={h.id}>
               {h.name} {h.hits.toFixed(3)}
@@ -229,7 +229,7 @@ export default function CoveragePanel({
             显著高于机选；而红区命中 ≥3 个这类指标与机选无显著差异（靠铺开没有用）。
             纯机选每期平均只覆盖 {randomDistinct?.red.toFixed(1)} 个不同{cfg.redName}号码，
             最优方案能覆盖到 {report.distinct.find((d) => d.id === "best")?.red.toFixed(1)} 个——
-            <span className="text-slate-400">
+            <span className="text-slate-500">
               这减少的是「多注之间互相重复、白花注数」的浪费，不改变单注命中期望，也不提高中大奖的概率。
             </span>
           </>

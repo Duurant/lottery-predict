@@ -33,7 +33,7 @@ export default function CopyButton({
       type="button"
       onClick={copy}
       aria-live="polite"
-      className={`rounded-lg bg-slate-800 px-2.5 py-1 text-xs text-slate-300 transition-colors hover:bg-slate-700 ${className}`}
+      className={`rounded-lg bg-slate-100 px-2.5 py-1 text-xs text-slate-600 transition-colors hover:bg-slate-200 ${className}`}
     >
       {state === "ok" ? "已复制 ✔" : state === "fail" ? "复制失败，请手动选择" : label}
     </button>

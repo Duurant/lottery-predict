@@ -71,7 +71,7 @@ function TrendGrid({
     return pts;
   }, [miss, max, rowCount]);
 
-  const hitCls = zone === "red" ? "bg-red-600" : "bg-blue-600";
+  const hitCls = zone === "red" ? "bg-red-100" : "bg-blue-600";
 
   return (
     <div className="overflow-x-auto pb-1">
@@ -97,7 +97,7 @@ function TrendGrid({
           className="absolute left-0 top-0 grid items-center"
           style={{ gridTemplateColumns: gridCols, height: HEAD_H, width: gridW }}
         >
-          <div className="sticky left-0 z-20 flex h-full items-center justify-center bg-slate-900/95 text-center text-[11px] text-slate-500 backdrop-blur-sm">
+          <div className="sticky left-0 z-20 flex h-full items-center justify-center bg-white/95 text-center text-[11px] text-slate-500 backdrop-blur-sm">
             期号
           </div>
           {Array.from({ length: max }, (_, i) => (
@@ -167,7 +167,7 @@ function RowCells({
 }) {
   return (
     <>
-      <div className="sticky left-0 z-10 flex h-full items-center justify-center bg-slate-900/95 text-[11px] tabular-nums text-slate-400 backdrop-blur-sm">
+      <div className="sticky left-0 z-10 flex h-full items-center justify-center bg-white/95 text-[11px] tabular-nums text-slate-500 backdrop-blur-sm">
         {row.code}
       </div>
       {Array.from({ length: max }, (_, i) => {
@@ -178,7 +178,7 @@ function RowCells({
           <div key={n} className="flex items-center justify-center">
             {isHit ? (
               <span
-                className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold text-white ${hitCls}`}
+                className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold text-slate-900 ${hitCls}`}
                 title={`${pad2(n)} 本期开出`}
               >
                 {pad2(n)}
@@ -186,7 +186,7 @@ function RowCells({
             ) : (
               <span
                 className={`text-[11px] tabular-nums ${
-                  m >= 15 ? "text-slate-300" : "text-slate-500"
+                  m >= 15 ? "text-slate-600" : "text-slate-500"
                 }`}
                 title={`${pad2(n)} 已遗漏 ${m} 期`}
               >
@@ -198,13 +198,13 @@ function RowCells({
       })}
       {showTail && zone === "red" && (
         <>
-          <div className="text-center text-[11px] tabular-nums text-amber-300/80">
+          <div className="text-center text-[11px] tabular-nums text-amber-700/80">
             {row.sum}
           </div>
-          <div className="text-center text-[11px] tabular-nums text-slate-400">
+          <div className="text-center text-[11px] tabular-nums text-slate-500">
             {row.oddEven}
           </div>
-          <div className="text-center text-[11px] tabular-nums text-slate-400">
+          <div className="text-center text-[11px] tabular-nums text-slate-500">
             {row.bigSmall}
           </div>
         </>
@@ -243,7 +243,7 @@ export default function TrendChart({
   return (
     <div className="flex flex-col gap-4">
       <section className="card">
-        <h3 className="mb-3 text-sm font-semibold text-white">
+        <h3 className="mb-3 text-sm font-semibold text-slate-900">
           {cfg.redName}走势（1-{cfg.redMax}）
           <span className="ml-2 text-xs font-normal text-slate-500">
             数字为连续遗漏期数，圆点为开出号码，连线为同号开出轨迹
@@ -253,7 +253,7 @@ export default function TrendChart({
       </section>
 
       <section className="card">
-        <h3 className="mb-3 text-sm font-semibold text-white">
+        <h3 className="mb-3 text-sm font-semibold text-slate-900">
           {cfg.blueName}走势（1-{cfg.blueMax}）
         </h3>
         <TrendGrid rows={rows} max={cfg.blueMax} zone="blue" showTail={false} />

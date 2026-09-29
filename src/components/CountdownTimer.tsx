@@ -43,7 +43,7 @@ function fmt(ms: number): { d: number; h: string; m: string; s: string } {
 export default function CountdownTimer({
   drawDays,
   drawTime,
-  accent = "text-red-400",
+  accent = "text-red-600",
 }: {
   drawDays: number[];
   drawTime: string;
@@ -69,7 +69,7 @@ export default function CountdownTimer({
   const t = target == null ? null : fmt(Math.max(target - now, 0));
 
   return (
-    <span className="text-sm text-slate-400">
+    <span className="text-sm text-slate-500">
       距下期开奖{" "}
       <span className={`font-semibold tabular-nums ${accent}`}>
         {t ? `${t.d > 0 ? `${t.d}天` : ""}${t.h}:${t.m}:${t.s}` : "--:--:--"}

@@ -39,7 +39,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { GAMES } from "../src/lib/games.ts";
-import { mulberry32 } from "../src/lib/stats.ts";
+import { mulberry32, shapeScorer } from "../src/lib/stats.ts";
 import { mean, pairedDiff, rateSe } from "../src/lib/stat.ts";
 import {
   batchAtLeastOne,
@@ -50,6 +50,10 @@ import {
 } from "../src/lib/prize.ts";
 import {
   buildCoverSet,
+  buildCoverBatch,
+  recommendationSeed,
+  SHAPE_STRENGTH,
+  TRIAL_SHAPE_STRENGTH,
   buildProfile,
   COVERAGE_PARAMS,
   distinctCount,
@@ -103,7 +107,7 @@ const label = (tiltName, spread) => `${tiltName}/s${spread}`;
  * 在给定期索引区间上跑 walk-forward：每期只用之前的数据选号。
  * 返回每期指标数组（配对统计需要逐期值，不能只留均值）。
  */
-function evaluate(cfg, profiles, draws, idxs, redParams, blueParams, tickets) {
+function evaluate(cfg, profiles, draws, idxs, redParams, blueParams, tickets, shapeStrength = (redParams.spread || blueParams.spread) ? SHAPE_STRENGTH : 0) {
   const n = idxs.length;
   const anyPrize = new Uint8Array(n);
   const redGe2 = new Uint8Array(n);
@@ -119,9 +123,10 @@ function evaluate(cfg, profiles, draws, idxs, redParams, blueParams, tickets) {
   for (let k = 0; k < n; k++) {
     const i = idxs[k];
     // 共同随机数：同一期同一随机源，候选与机选配对（同一期、同一注序）
-    const rand = mulberry32(hashSeed(cfg.key, "fit", draws[i].code));
-    const redSet = buildCoverSet(profiles.red, i, redParams, tickets, rand);
-    const blueSet = buildCoverSet(profiles.blue, i, blueParams, tickets, rand);
+    const rand = mulberry32(recommendationSeed(cfg.key, draws[i - 1].code, draws[i - 1].date));
+    const batch = buildCoverBatch(profiles, i, { red: redParams, blue: blueParams }, tickets, rand, shapeStrength ? shapeScorer(draws, i) : undefined, shapeStrength);
+    const redSet = batch.red;
+    const blueSet = batch.blue;
     distinctRed += distinctCount(redSet);
     distinctBlue += distinctCount(blueSet);
 
@@ -460,6 +465,20 @@ function fitGame(key, tickets) {
   const defaults = evaluate(cfg, profiles, draws, all, COVERAGE_PARAMS[key].red, COVERAGE_PARAMS[key].blue, tickets);
   const defaultsValid = evaluate(cfg, profiles, draws, valid, COVERAGE_PARAMS[key].red, COVERAGE_PARAMS[key].blue, tickets);
 
+  // 固定软形态方案与无形态基线比较，不按验证结果反复调强度。
+  const plainValid = evaluate(cfg, profiles, draws, valid, COVERAGE_PARAMS[key].red, COVERAGE_PARAMS[key].blue, tickets, 0);
+  const trialValid = evaluate(cfg, profiles, draws, valid, COVERAGE_PARAMS[key].red, COVERAGE_PARAMS[key].blue, tickets, TRIAL_SHAPE_STRENGTH);
+  const shapeValidation = {
+    strength: TRIAL_SHAPE_STRENGTH,
+    activeStrength: SHAPE_STRENGTH,
+    note: "奇偶、相邻连号对数、和值等权；只做软倾向，不宣称预测优势",
+    anyPrize: pairedDiff(trialValid.anyPrize, plainValid.anyPrize),
+    avgHits: pairedDiff(trialValid.avgHits, randomValid.avgHits),
+    withShape: summarize(trialValid),
+    withoutShape: summarize(plainValid),
+  };
+  console.log(`  软形态独立验证：覆盖差 ${fmtPp(shapeValidation.anyPrize.diff)} p=${shapeValidation.anyPrize.p.toFixed(3)}；单注命中 vs 机选 p=${shapeValidation.avgHits.p.toFixed(3)}`);
+
   return {
     game: key,
     name: cfg.name,
@@ -474,6 +493,7 @@ function fitGame(key, tickets) {
     analytic,
     selfCheck,
     selfOk,
+    shapeValidation,
     randomValid: summarize(randomValid),
     randomFull: summarize(randomFull),
     edge,
