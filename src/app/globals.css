@@ -146,6 +146,44 @@ form .button-row { margin-top:20px; }
 .check-result span { color:#a0aa99; display:block; margin-top:4px; }
 .record-details { font-size:11px; color:#919c8a; margin-top:13px; line-height:1.9; }
 .record-details p { margin-top:8px; }
+.play-layout { display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:24px; align-items:start; }
+.play-controls { display:flex; align-items:center; flex-wrap:wrap; justify-content:space-between; gap:12px; }
+.play-controls label { color:var(--muted); font-size:12px; }
+.play-controls select,.input-panel select { border:1px solid #dce3d7; background:#fcfdfb; border-radius:8px; padding:9px; font-size:12px; }
+.input-panel select { width:100%; }
+.play-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-top:18px; }
+.play-card { min-width:0; border:1px solid var(--line); border-radius:12px; padding:18px; background:#fcfdfb; }
+.play-pools { margin:18px 0; display:grid; gap:12px; }
+.play-pools>div { display:flex; gap:10px; align-items:baseline; }
+.play-pools span { flex-shrink:0; color:var(--muted); font-size:11px; }
+.play-pools strong { color:#b3574c; font-size:14px; font-weight:600; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.play-pools>div:nth-child(2) strong { color:#517bb1; }
+.play-cost { color:#6b7966; font-size:12px; padding:12px 0; border-top:1px solid var(--line); }
+.play-cost strong { margin-left:8px; font-size:18px; color:var(--green); }
+.play-cost>span { display:block; font-size:10px; color:var(--muted); margin-top:4px; }
+.play-note { margin-top:20px; }
+.play-note a { color:var(--green); text-decoration:underline; }
+.play-digit-pools { display:flex; gap:10px; margin:20px 0; }
+.play-digit-pools>div { flex:1; text-align:center; }
+.play-digit-pools span { display:block; color:var(--muted); font-size:10px; }
+.play-digit-pools strong { display:block; color:#7b61a2; letter-spacing:2px; margin-top:9px; font-size:17px; }
+.preference-panel { margin-bottom:20px; }
+.workspace-sidebar .preference-panel { padding:20px; margin:0; }
+.workspace-sidebar .preference-panel h2 { font-size:17px; }
+.preference-metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin:20px 0; }
+.preference-metrics span { display:block; color:var(--muted); font-size:11px; }
+.preference-metrics strong { display:block; font-size:20px; color:var(--green); margin-top:5px; }
+.workspace-sidebar .preference-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.preference-zone { display:flex; flex-wrap:wrap; align-items:baseline; gap:10px; margin:12px 0; font-size:12px; color:#6e7d68; }
+.preference-zone>div { display:flex; flex-wrap:wrap; gap:8px; }
+.preference-number { font-variant-numeric:tabular-nums; background:#f3f6ee; padding:5px 8px; border-radius:6px; }
+.preference-number small { color:var(--muted); font-size:10px; }
+.input-error { background:#fff1eb; color:#a65040; }
+.record-play { margin:16px 0; padding:12px; border-radius:8px; background:#f5f7f2; font-size:12px; }
+.record-play pre { white-space:pre-wrap; overflow-wrap:anywhere; margin:10px 0; line-height:1.9; font-variant-numeric:tabular-nums; }
+.record-play>span { font-size:10px; color:var(--muted); }
+@media (max-width:1023px) { .play-layout { grid-template-columns:minmax(0,1fr) 260px; gap:16px; } .play-grid { grid-template-columns:1fr; } }
+@media (max-width:767px) { .play-layout { grid-template-columns:1fr; } .view-tabs { width:100%; } .view-tabs button { flex:1; } .preference-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } .play-card { padding:16px; } .play-controls label { display:flex; align-items:center; gap:8px; } }
 .replay-entry { display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%; margin-top:-12px; padding:13px 18px; }
 .replay-entry>span:first-child { font-size:20px; line-height:1; }
 .draw-replay-dialog { position:fixed; inset:0; margin:auto; width:min(700px,calc(100% - 24px)); max-height:calc(100dvh - 32px); padding:0; border:1px solid #e4e9e0; border-radius:22px; background:#fafbf7; color:var(--ink); box-shadow:0 24px 90px #182b3040; overflow:auto; }

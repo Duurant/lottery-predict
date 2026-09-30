@@ -12,6 +12,24 @@ export function ticketShape(nums: number[]) {
   };
 }
 
+/** 用户选择的描述统计；数字型按位置传入，保留数字 0。 */
+export function selectionSummary(rows: number[][], max: number, min = 1) {
+  const counts = Array.from({ length: max + 1 }, () => 0);
+  let total = 0, odd = 0, big = 0, sum = 0, consecutive = 0;
+  for (const nums of rows) {
+    const shape = ticketShape(nums);
+    sum += shape.sum; odd += shape.odd; consecutive += shape.consecutive;
+    big += bigSmallRatio(nums, max)[0];
+    for (const n of nums) { counts[n]++; total++; }
+  }
+  return {
+    samples: rows.length, total, oddRate: total ? odd / total : 0,
+    bigRate: total ? big / total : 0, meanSum: rows.length ? sum / rows.length : 0,
+    meanConsecutive: rows.length ? consecutive / rows.length : 0,
+    frequent: counts.map((count, n) => ({ n, count })).filter((x) => x.n >= min && x.count > 0).sort((a, b) => b.count - a.count || a.n - b.n).slice(0, 5),
+  };
+}
+
 /** 只读取开奖前的数据；三个形态等权平滑，分数仅表示历史形态相似度。 */
 export function shapeScorer(draws: Draw[], before: number, window = 100): (nums: number[]) => number {
   const history = draws.slice(Math.max(0, before - window), before).map((d) => ticketShape(d.red));

@@ -3,6 +3,7 @@ import { P5_CONFIG, judgeDigitPrize, type DigitDraw } from "@/lib/digit";
 import { judgePrizeForDraw } from "@/lib/prize";
 import { mulberry32, ticketShape } from "@/lib/stats";
 import { hashSeed } from "@/lib/coverage";
+import { parsePlay, MAX_PLAY_TICKETS, MAX_PLAY_TEXT_LENGTH, type PlayEntry } from "@/lib/plays";
 
 export type LotteryKey = GameKey | "p5";
 export type Ticket = { game: GameKey; red: number[]; blue: number[] } | { game: "p5"; digits: number[] };
@@ -10,6 +11,8 @@ export type RecordKind = "main" | "personal" | "backup" | "purchase";
 export interface SavedRecord {
   id: string; game: LotteryKey; kind: RecordKind; period: string;
   tickets: Ticket[]; reason: string; createdAt: number; updatedAt?: number;
+  /** 保留原始玩法与号码池，修改记录时不丢失胆码、拖码和混合输入。 */
+  entry?: PlayEntry;
 }
 export interface Like { id: string; period: string; ticket: Ticket; createdAt: number }
 export interface Notebook { version: 1; records: SavedRecord[]; likes: Like[]; preferenceSince: number }
@@ -68,10 +71,18 @@ export function readNotebook(raw: string | null): Notebook {
   const n = JSON.parse(raw) as Notebook;
   const periodOk = (p: unknown) => typeof p === "string" && /^(after|code):\d{5,7}$/.test(p);
   const timeOk = (v: unknown) => typeof v === "number" && Number.isFinite(v) && v >= 0;
+  const entryOk = (r: SavedRecord) => {
+    if (r.entry === undefined) return r.tickets.length <= 100;
+    if (!r.entry || typeof r.entry.text !== "string" || r.entry.text.length > MAX_PLAY_TEXT_LENGTH) return false;
+    try {
+      const expanded = parsePlay(r.game, r.entry);
+      return expanded.length === r.tickets.length && expanded.every((t, i) => ticketKey(t) === ticketKey(r.tickets[i]));
+    } catch { return false; }
+  };
   if (n.version !== 1 || !Array.isArray(n.records) || !Array.isArray(n.likes) || !timeOk(n.preferenceSince)
     || !n.records.every((r) => r && typeof r.id === "string" && Object.hasOwn(KIND_NAMES, r.kind) && periodOk(r.period) && timeOk(r.createdAt)
       && (r.updatedAt === undefined || timeOk(r.updatedAt)) && typeof r.reason === "string" && r.reason.length < 10000
-      && Array.isArray(r.tickets) && r.tickets.length > 0 && r.tickets.length <= 100 && r.tickets.every((t) => validTicket(t) && t.game === r.game))
+      && Array.isArray(r.tickets) && r.tickets.length > 0 && r.tickets.length <= MAX_PLAY_TICKETS && r.tickets.every((t) => validTicket(t) && t.game === r.game) && entryOk(r))
     || !n.likes.every((l) => l && typeof l.id === "string" && timeOk(l.createdAt) && periodOk(l.period) && validTicket(l.ticket)))
     throw new Error("本地记录格式无法读取，原记录未被覆盖。请先备份浏览器数据，再处理存储问题。");
   return n;

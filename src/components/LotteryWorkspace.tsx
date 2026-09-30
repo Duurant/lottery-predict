@@ -8,11 +8,13 @@ import Disclaimer from "@/components/Disclaimer";
 import TicketNumbers from "@/components/TicketNumbers";
 import RecordsPanel from "@/components/RecordsPanel";
 import RefreshQuote from "@/components/RefreshQuote";
+import PlayRecommendations from "@/components/PlayRecommendations";
 import { decodeDraws, decodeDigits, type CompactDraws, type CompactDigits } from "@/lib/compact";
 import { emptyNotebook, gameName, personalizedTickets, preferenceTickets, readNotebook, STORAGE_KEY, ticketKey, ticketText, type LotteryKey, type Notebook, type SavedRecord, type Ticket } from "@/lib/notebook";
 import { expectedDrawTime, systemReason, systemTickets } from "@/lib/recommendation";
 import { hashSeed } from "@/lib/coverage";
 import { ticketShape } from "@/lib/stats";
+import { parsePlay, PLAY_NAMES, type PlayEntry } from "@/lib/plays";
 
 const GAMES: LotteryKey[] = ["dlt", "ssq", "p5"];
 const DrawReplay = dynamic(() => import("@/components/DrawReplay"), { ssr: false });
@@ -33,7 +35,7 @@ export default function LotteryWorkspace({ compact, initial }: {
   const [replayOpen, setReplayOpen] = useState(false);
 
   useEffect(() => {
-    const query = () => { const q = new URLSearchParams(location.search); const g = q.get("g"); setGame(GAMES.includes(g as LotteryKey) ? g as LotteryKey : "dlt"); setBackups([]); setNotice(""); setView(q.get("view") === "records" ? "records" : "recommend"); };
+    const query = () => { const q = new URLSearchParams(location.search); const g = q.get("g"); setGame(GAMES.includes(g as LotteryKey) ? g as LotteryKey : "dlt"); setBackups([]); setNotice(""); setView(["records", "single"].includes(q.get("view") ?? "") ? q.get("view")! : "recommend"); };
     query(); window.addEventListener("popstate", query);
     const load = () => { try { setBook(readNotebook(localStorage.getItem(STORAGE_KEY))); setReady(true); setStorageError(""); } catch (e) { setStorageError(e instanceof Error ? e.message : "浏览器存储不可用，自动保存已暂停。"); setReady(false); } };
     load(); const storage = (e: StorageEvent) => { if (e.key === STORAGE_KEY || e.key === null) load(); };
@@ -75,7 +77,7 @@ export default function LotteryWorkspace({ compact, initial }: {
 
   const navigate = (g: LotteryKey, v: string) => {
     setGame(g); setView(v); setBackups([]); setNotice("");
-    history.pushState(null, "", `/?g=${g}${v === "records" ? "&view=records" : ""}`);
+    history.pushState(null, "", `/?g=${g}${v === "recommend" ? "" : `&view=${v}`}`);
   };
   const toggleLike = (t: Ticket) => {
     const id = `${period}:${ticketKey(t)}`;
@@ -84,6 +86,13 @@ export default function LotteryWorkspace({ compact, initial }: {
   const saveBackup = (t: Ticket) => {
     const id = `backup:${period}:${ticketKey(t)}`;
     if (change((n) => n.records.some((r) => r.id === id) ? n : ({ ...n, records: [...n.records, { id, game, kind: "backup", period, tickets: [t], reason: "用户手动收藏的备选号码；收藏本身不参与偏好学习。", createdAt: Date.now() }] }))) setNotice("已收藏到我的号码。");
+  };
+  const savePlay = (entry: PlayEntry) => {
+    const id = `play:${game}:${period}:${hashSeed(entry.mode, entry.text)}`;
+    return change((n) => n.records.some((r) => r.id === id) ? n : ({ ...n, records: [...n.records, {
+      id, game, period, kind: "backup", tickets: parsePlay(game, entry), entry,
+      reason: `${PLAY_NAMES[entry.mode]}玩法示例收藏；号码池未经覆盖优化验证，收藏不参与喜好分析。`, createdAt: Date.now(),
+    }] }));
   };
   const ticketRows = (tickets: Ticket[], interactive = false) => tickets.map((t, i) => {
     const shape = ticketShape(t.game === "p5" ? t.digits : t.red);
@@ -97,12 +106,13 @@ export default function LotteryWorkspace({ compact, initial }: {
 
   return <div className="lottery-workspace">
     <div className="workspace-heading">{view === "records" ? <div><span className="eyebrow">历史有迹可循，开奖保持随机</span><h1>每一注，都有记录。</h1><p>看清推荐依据，留下自己的选择。</p></div> : <RefreshQuote />}<span className="local-badge"><span /> 无需登录 · 记录留在本机</span></div>
-    <div className="workspace-toolbar"><div className="game-tabs" aria-label="选择彩种">{GAMES.map((g) => <button key={g} aria-pressed={game === g} className={game === g ? "active" : ""} onClick={() => navigate(g, view)}>{gameName(g)}</button>)}</div><div className="view-tabs"><button aria-pressed={view === "recommend"} className={view === "recommend" ? "active" : ""} onClick={() => navigate(game, "recommend")}>当期推荐</button><button aria-pressed={view === "records"} className={view === "records" ? "active" : ""} onClick={() => navigate(game, "records")}>我的号码</button></div></div>
+    <div className="workspace-toolbar"><div className="game-tabs" aria-label="选择彩种">{GAMES.map((g) => <button key={g} aria-pressed={game === g} className={game === g ? "active" : ""} onClick={() => navigate(g, view)}>{gameName(g)}</button>)}</div><div className="view-tabs"><button aria-pressed={view === "recommend"} className={view === "recommend" ? "active" : ""} onClick={() => navigate(game, "recommend")}>玩法推荐</button><button aria-pressed={view === "single"} className={view === "single" ? "active" : ""} onClick={() => navigate(game, "single")}>单注推荐</button><button aria-pressed={view === "records"} className={view === "records" ? "active" : ""} onClick={() => navigate(game, "records")}>我的号码</button></div></div>
     {storageError && <p className="alert" role="alert">{storageError} <button className="text-button" onClick={() => location.reload()}>重试读取</button></p>}
     {!latest ? <div className="surface empty-state">开奖数据暂时不可用，请稍后再来。</div> : view === "records" ? <RecordsPanel key={game} notebook={book} data={data} game={game} period={period} ready={ready} change={change} /> : <>
       {waiting && <p className="alert">预计开奖时间已过，正在等待官方结果更新。本轮号码仅供查看，自动保存和新备选已暂停；数据更新后再提供下一轮推荐。</p>}
+      {view === "recommend" ? <PlayRecommendations key={game} game={game} main={main} personal={personal} notebook={book} ready={ready} waiting={waiting} latestCode={latest.code} save={savePlay} records={() => navigate(game, "records")} single={() => navigate(game, "single")} /> : <>
       <div className="recommend-layout"><div className="recommend-primary"><section className="surface main-recommendation">
-        <div className="section-heading"><div><span className="eyebrow">为整组号码做好搭配</span><h2>当期主推荐 <span className="source-tag">系统推荐</span></h2></div><span className="quiet-badge">固定 5 注</span></div>
+        <div className="section-heading"><div><span className="eyebrow">为整组单注做好搭配</span><h2>当期单注推荐 <span className="source-tag">系统推荐</span></h2></div><span className="quiet-badge">固定 5 注</span></div>
         <p className="period-label">接续第 {latest.code} 期的下一期开奖 <span>· {savedMain ? "已自动保存" : waiting ? "等待数据更新" : ready ? "自动保存中" : "正在读取本地记录"}</span></p>
         <div data-testid="main-tickets">{ticketRows(main)}</div>
         <div className="recommend-footer"><div className="reason-box"><strong>为什么这样选？</strong><p>{reason}</p></div><CopyButton text={main.map(ticketText).join("\n")} label="复制这 5 注" /></div>
@@ -119,6 +129,7 @@ export default function LotteryWorkspace({ compact, initial }: {
       <section className="surface side-action"><span className="side-icon">↗</span><h3>自己的号码，放在这里</h3><p>粘贴购买号码，开奖后核对命中情况。也让推荐更懂您的喜好。</p><button className="btn-primary" onClick={() => navigate(game, "records")}>录入并核对号码</button></section>
       <section className="research-note"><span className="eyebrow">读懂历史，不必先懂统计</span><h3>热号、遗漏，是什么意思？</h3><p>热号是在所选期数里出现较多的号码；遗漏是距上次出现经过了多少期。它们描述过去，不表示下一期更容易开出。</p><Link href={`/${game}`}>去研究历史 →</Link></section></aside></div>
       <section className="surface backup-panel"><div className="section-heading"><div><span className="eyebrow">还有一些不同的搭配</span><h2>其他备选</h2></div><button className="btn-secondary" disabled={waiting} onClick={() => { setBackups(systemTickets(game, data, Math.floor(Math.random() * 2147483646) + 1)); setNotice(""); }}>{backups.length ? "换一组备选" : "看看其他备选"} ↻</button></div><p className="muted">喜欢是一种偏好，收藏是一份记录。备选不替换上方固定的主推荐。</p>{backups.length > 0 ? <div className="backup-grid">{ticketRows(backups, true)}</div> : <p className="backup-placeholder">主推荐已经准备好；需要其他选择时，再展开备选。</p>}{notice && <p role="status" className="form-message">{notice}</p>}</section>
+      </>}
     </>}
     <Disclaimer compact />
     {replayOpen && <DrawReplay initialGame={game} data={data} onClose={() => setReplayOpen(false)} />}
