@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import CopyButton from "@/components/CopyButton";
 import Disclaimer from "@/components/Disclaimer";
 import TicketNumbers from "@/components/TicketNumbers";
 import RecordsPanel from "@/components/RecordsPanel";
+import RefreshQuote from "@/components/RefreshQuote";
 import { decodeDraws, decodeDigits, type CompactDraws, type CompactDigits } from "@/lib/compact";
 import { emptyNotebook, gameName, personalizedTickets, preferenceTickets, readNotebook, STORAGE_KEY, ticketKey, ticketText, type LotteryKey, type Notebook, type SavedRecord, type Ticket } from "@/lib/notebook";
 import { expectedDrawTime, systemReason, systemTickets } from "@/lib/recommendation";
@@ -13,6 +15,7 @@ import { hashSeed } from "@/lib/coverage";
 import { ticketShape } from "@/lib/stats";
 
 const GAMES: LotteryKey[] = ["dlt", "ssq", "p5"];
+const DrawReplay = dynamic(() => import("@/components/DrawReplay"), { ssr: false });
 
 export default function LotteryWorkspace({ compact, initial }: {
   compact: { dlt: CompactDraws; ssq: CompactDraws; p5: CompactDigits };
@@ -27,6 +30,7 @@ export default function LotteryWorkspace({ compact, initial }: {
   const [now, setNow] = useState(0);
   const [backups, setBackups] = useState<Ticket[]>([]);
   const [notice, setNotice] = useState("");
+  const [replayOpen, setReplayOpen] = useState(false);
 
   useEffect(() => {
     const query = () => { const q = new URLSearchParams(location.search); const g = q.get("g"); setGame(GAMES.includes(g as LotteryKey) ? g as LotteryKey : "dlt"); setBackups([]); setNotice(""); setView(q.get("view") === "records" ? "records" : "recommend"); };
@@ -92,7 +96,7 @@ export default function LotteryWorkspace({ compact, initial }: {
   });
 
   return <div className="lottery-workspace">
-    <div className="workspace-heading"><div><span className="eyebrow">历史有迹可循，开奖保持随机</span><h1>{view === "records" ? "每一注，都有记录。" : "选一组号码，简单一点。"}</h1><p>看清推荐依据，留下自己的选择。</p></div><span className="local-badge"><span /> 无需登录 · 记录留在本机</span></div>
+    <div className="workspace-heading">{view === "records" ? <div><span className="eyebrow">历史有迹可循，开奖保持随机</span><h1>每一注，都有记录。</h1><p>看清推荐依据，留下自己的选择。</p></div> : <RefreshQuote />}<span className="local-badge"><span /> 无需登录 · 记录留在本机</span></div>
     <div className="workspace-toolbar"><div className="game-tabs" aria-label="选择彩种">{GAMES.map((g) => <button key={g} aria-pressed={game === g} className={game === g ? "active" : ""} onClick={() => navigate(g, view)}>{gameName(g)}</button>)}</div><div className="view-tabs"><button aria-pressed={view === "recommend"} className={view === "recommend" ? "active" : ""} onClick={() => navigate(game, "recommend")}>当期推荐</button><button aria-pressed={view === "records"} className={view === "records" ? "active" : ""} onClick={() => navigate(game, "records")}>我的号码</button></div></div>
     {storageError && <p className="alert" role="alert">{storageError} <button className="text-button" onClick={() => location.reload()}>重试读取</button></p>}
     {!latest ? <div className="surface empty-state">开奖数据暂时不可用，请稍后再来。</div> : view === "records" ? <RecordsPanel key={game} notebook={book} data={data} game={game} period={period} ready={ready} change={change} /> : <>
@@ -111,10 +115,12 @@ export default function LotteryWorkspace({ compact, initial }: {
         }}>清空喜好学习记录</button></details>}
       </section></div>
       <aside className="workspace-sidebar"><section className="surface latest-panel"><span className="eyebrow">最近一次开奖</span><div className="section-heading"><h2>第 {latest.code} 期</h2><span className="status-dot">已开奖</span></div><p className="muted">{latest.date} · 官方历史数据</p><TicketNumbers ticket={game === "p5" && "digits" in latest ? { game, digits: latest.digits } : "red" in latest ? { game: game === "p5" ? "dlt" : game, red: latest.red, blue: latest.blue } : initial[game][0]} small /><Link className="sidebar-link" href={`/${game}`}>查看历史开奖与走势 <span>↗</span></Link></section>
+      <button className="btn-secondary replay-entry" onClick={() => setReplayOpen(true)}><span aria-hidden="true">▷</span> 开奖动画回放 <span aria-hidden="true">→</span></button>
       <section className="surface side-action"><span className="side-icon">↗</span><h3>自己的号码，放在这里</h3><p>粘贴购买号码，开奖后核对命中情况。也让推荐更懂您的喜好。</p><button className="btn-primary" onClick={() => navigate(game, "records")}>录入并核对号码</button></section>
       <section className="research-note"><span className="eyebrow">读懂历史，不必先懂统计</span><h3>热号、遗漏，是什么意思？</h3><p>热号是在所选期数里出现较多的号码；遗漏是距上次出现经过了多少期。它们描述过去，不表示下一期更容易开出。</p><Link href={`/${game}`}>去研究历史 →</Link></section></aside></div>
       <section className="surface backup-panel"><div className="section-heading"><div><span className="eyebrow">还有一些不同的搭配</span><h2>其他备选</h2></div><button className="btn-secondary" disabled={waiting} onClick={() => { setBackups(systemTickets(game, data, Math.floor(Math.random() * 2147483646) + 1)); setNotice(""); }}>{backups.length ? "换一组备选" : "看看其他备选"} ↻</button></div><p className="muted">喜欢是一种偏好，收藏是一份记录。备选不替换上方固定的主推荐。</p>{backups.length > 0 ? <div className="backup-grid">{ticketRows(backups, true)}</div> : <p className="backup-placeholder">主推荐已经准备好；需要其他选择时，再展开备选。</p>}{notice && <p role="status" className="form-message">{notice}</p>}</section>
     </>}
     <Disclaimer compact />
+    {replayOpen && <DrawReplay initialGame={game} data={data} onClose={() => setReplayOpen(false)} />}
   </div>;
 }
